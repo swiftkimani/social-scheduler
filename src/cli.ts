@@ -15,7 +15,7 @@ program
   .option("-a, --at <datetime>", "Schedule time (ISO format or 'tomorrow 9am')")
   .action((content: string, opts: { platforms: string; at?: string }) => {
     const platforms = opts.platforms.split(",").map((p: string) => p.trim() as Platform)
-    const post = schedulePost({ content, platforms, scheduledAt: opts.at || null })
+    const post = schedulePost({ content, platforms, scheduledAt: opts.at || undefined })
     console.log(`\n  ✅ Post scheduled`)
     console.log(`  ID:       ${post.id}`)
     console.log(`  Content:  ${post.content.slice(0, 60)}${post.content.length > 60 ? "..." : ""}`)

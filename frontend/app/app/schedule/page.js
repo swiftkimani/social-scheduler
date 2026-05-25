@@ -24,13 +24,86 @@ function PostItem({ post, index, onPublish, onCancel }) {
   )
 }
 
+function LivePreview({ content, platforms }) {
+  const selected = Object.entries(platforms).filter(([,v])=>v).map(([k])=>k);
+  const mainPlatform = selected[0] || "twitter";
+  
+  return (
+    <div className="glass card" style={{position:"sticky", top:"2rem", border:"1px solid rgba(99,102,241,0.15)"}}>
+      <div style={{display:"flex", alignItems:"center", gap:"0.5rem", marginBottom:"1.25rem"}}>
+        <span style={{fontSize:"1.1rem"}}>👁️</span>
+        <h2 style={{fontSize:"0.9rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em"}}>Live Preview</h2>
+        <div style={{marginLeft:"auto", display:"flex", gap:"0.25rem"}}>
+          {selected.map(p => (
+            <span key={p} className={`tag tag-${p}`} style={{fontSize:"0.55rem", padding:"0.1rem 0.4rem"}}>{p}</span>
+          ))}
+        </div>
+      </div>
+      
+      <div style={{
+        background: "rgba(6,8,15,0.4)",
+        borderRadius: 12,
+        padding: "1.25rem",
+        border: "1px solid rgba(148,163,184,0.08)",
+        minHeight: "150px"
+      }}>
+        <div style={{display:"flex", gap:"0.75rem", marginBottom:"1rem"}}>
+          <div style={{
+            width: 40, height: 40, borderRadius: "50%",
+            background: "linear-gradient(135deg, var(--accent), var(--pink))",
+            display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#fff", fontSize:"0.8rem"
+          }}>N</div>
+          <div>
+            <div style={{fontWeight:700, fontSize:"0.85rem", color:"var(--text)"}}>Nexus AI</div>
+            <div style={{fontSize:"0.75rem", color:"var(--text-muted)"}}>@nexus_studio · Just now</div>
+          </div>
+        </div>
+        <div style={{
+          fontSize: "0.95rem", 
+          lineHeight: 1.6, 
+          color: "var(--text)", 
+          whiteSpace: "pre-wrap",
+          marginBottom: "1rem"
+        }}>
+          {content || <span style={{color:"var(--text-muted)", fontStyle:"italic"}}>Your content will appear here...</span>}
+        </div>
+        <div style={{
+          display:"flex", justifyContent:"space-between", 
+          paddingTop:"0.75rem", borderTop:"1px solid rgba(148,163,184,0.06)",
+          color:"var(--text-muted)", fontSize:"0.8rem"
+        }}>
+          <span>💬 0</span>
+          <span>🔄 0</span>
+          <span>❤️ 0</span>
+          <span>📊 0</span>
+        </div>
+      </div>
+      
+      <div style={{marginTop:"1.5rem", padding:"1rem", background:"rgba(99,102,241,0.03)", borderRadius:10, border:"1px solid rgba(99,102,241,0.08)"}}>
+        <div style={{fontSize:"0.7rem", fontWeight:700, color:"#a5b4fc", textTransform:"uppercase", marginBottom:"0.5rem"}}>Optimization Check</div>
+        <div style={{display:"flex", flexDirection:"column", gap:"0.5rem"}}>
+          <div style={{display:"flex", justifyContent:"space-between", fontSize:"0.75rem"}}>
+            <span>Readability</span>
+            <span style={{color:"#6ee7b7"}}>High</span>
+          </div>
+          <div style={{display:"flex", justifyContent:"space-between", fontSize:"0.75rem"}}>
+            <span>Hashtag Density</span>
+            <span style={{color:"#fcd34d"}}>Optimal</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ContentStudio() {
   const [posts, setPosts] = useState([])
   const [filter, setFilter] = useState("")
+  const [content, setContent] = useState("")
   const [charCount, setCharCount] = useState(0)
   const [toasts, setToasts] = useState([])
   const [submitting, setSubmitting] = useState(false)
-  const [platforms, setPlatforms] = useState({ twitter: true, linkedin: false })
+  const [platforms, setPlatforms] = useState({ twitter: true, linkedin: false, facebook: false, instagram: false, threads: false })
   const [topic, setTopic] = useState("")
   const [tone, setTone] = useState("casual")
   const [aiVariations, setAiVariations] = useState([])
@@ -41,7 +114,6 @@ export default function ContentStudio() {
   const contentRef = useRef(null)
   const [bestTimes, setBestTimes] = useState([])
   const [connectedPlatforms, setConnectedPlatforms] = useState({})
-  const [summaryText, setSummaryText] = useState("")
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryResult, setSummaryResult] = useState(null)
 
@@ -109,7 +181,11 @@ export default function ContentStudio() {
   }
 
   function useVariation(text) {
-    if (contentRef.current) { contentRef.current.value = text; setCharCount(text.length) }
+    if (contentRef.current) { 
+      contentRef.current.value = text; 
+      setContent(text);
+      setCharCount(text.length); 
+    }
     setAiVariations([])
   }
 
@@ -124,7 +200,14 @@ export default function ContentStudio() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content, platforms: selected, scheduledAt: formData.get("scheduledAt") || null }),
       })
-      if (r.ok) { formRef.current?.reset(); setCharCount(0); setAiVariations([]); await refreshPosts(); addToast("Scheduled!", "success") }
+      if (r.ok) { 
+        formRef.current?.reset(); 
+        setContent("");
+        setCharCount(0); 
+        setAiVariations([]); 
+        await refreshPosts(); 
+        addToast("Scheduled!", "success") 
+      }
       else addToast("Failed", "error")
     } catch { addToast("Error", "error") }
     finally { setSubmitting(false) }
@@ -146,167 +229,213 @@ export default function ContentStudio() {
   const pendingAuto = posts.filter(p => p.status === "pending" && p.scheduledAt).length
 
   return (
-    <div>
+    <div style={{maxWidth:1200, margin:"0 auto"}}>
       <div className="toast-container">{toasts.map(t => (
         <div key={t.id} className={`toast toast-${t.type}`} onClick={() => setToasts(p => p.filter(x => x.id !== t.id))}>{t.type === "success" ? "✓" : "✕"} {t.msg}</div>
       ))}</div>
+      
       <div className="app-topbar">
         <div>
           <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginBottom:"0.25rem"}}>
-            <h1 style={{fontSize:"1.35rem",fontWeight:800,letterSpacing:"-0.02em"}}>Content Studio</h1>
+            <h1 style={{fontSize:"1.5rem",fontWeight:800,letterSpacing:"-0.03em"}}>Content Studio</h1>
             {pendingAuto > 0 && (
               <span style={{
-                display:"inline-flex",alignItems:"center",gap:"0.25rem",
-                padding:"0.15rem 0.5rem", borderRadius:999,
+                display:"inline-flex",alignItems:"center",gap:"0.375rem",
+                padding:"0.25rem 0.625rem", borderRadius:999,
                 background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.1)",
                 fontSize:"0.65rem", fontWeight:600, color:"#6ee7b7",
               }}>
-                <span style={{width:4,height:4,borderRadius:"50%",background:"#10b981",display:"inline-block",animation:"pulse 2s infinite"}} />
-                {pendingAuto} auto-publish queued
+                <span style={{width:5,height:5,borderRadius:"50%",background:"#10b981",display:"inline-block",animation:"pulse 2s infinite"}} />
+                {pendingAuto} queued
               </span>
             )}
           </div>
-          <p style={{color:"var(--text-secondary)",fontSize:"0.85rem"}}>Create and schedule AI-powered posts</p>
+          <p style={{color:"var(--text-secondary)",fontSize:"0.85rem"}}>Compose and optimize your social strategy with AI</p>
         </div>
       </div>
-      <div className="dashboard-grid">
-        <div>
-          <div className="glass card" style={{marginBottom:"1.5rem"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
-              <div style={{display:"flex",alignItems:"center",gap:"0.625rem"}}>
-                <span>✎</span><h2 style={{fontSize:"1rem",fontWeight:700}}>New Post</h2>
-              </div>
+
+      <div className="dashboard-grid" style={{gridTemplateColumns:"1fr 380px"}}>
+        {/* Left Column: Editor & AI Tools */}
+        <div style={{display:"flex", flexDirection:"column", gap:"1.5rem"}}>
+          
+          {/* Enhanced AI Generator */}
+          <div className="glass card" style={{padding:"1.25rem", border:"1px solid rgba(99,102,241,0.2)"}}>
+            <div style={{display:"flex", alignItems:"center", gap:"0.5rem", marginBottom:"1.25rem"}}>
+              <span style={{color:"#a5b4fc", fontSize:"1.2rem"}}>✨</span>
+              <h2 style={{fontSize:"0.95rem", fontWeight:700}}>AI Intelligence</h2>
+              <span style={{marginLeft:"auto", fontSize:"0.65rem", fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.05em"}}>Powered by Nexus Engine</span>
             </div>
 
-            {/* AI Generator */}
-            <div style={{background:"rgba(99,102,241,0.03)",borderRadius:12,padding:"1rem",marginBottom:"1.25rem"}}>
-              <div style={{display:"flex",gap:"0.75rem",marginBottom:"0.75rem",alignItems:"end"}}>
-                <div style={{flex:1}}>
-                  <label style={{fontSize:"0.7rem",fontWeight:600,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:"0.25rem"}}>✨ AI Generate</label>
-                  <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Enter a topic..." style={{width:"100%"}} onKeyDown={e => e.key === "Enter" && generateAI()} />
+            <div style={{
+              background: "rgba(99,102,241,0.04)",
+              borderRadius: 14,
+              padding: "1rem",
+              border: "1px solid rgba(99,102,241,0.1)"
+            }}>
+              <div style={{display:"flex", gap:"0.75rem", alignItems:"stretch"}}>
+                <div style={{flex:1, position:"relative"}}>
+                  <input 
+                    value={topic} 
+                    onChange={e => setTopic(e.target.value)} 
+                    placeholder="Describe your topic or idea..." 
+                    style={{
+                      width:"100%", height:"100%", padding:"0.75rem 1rem", 
+                      borderRadius:10, background:"rgba(6,8,15,0.6)",
+                      border:"1px solid rgba(148,163,184,0.1)", color:"var(--text)"
+                    }} 
+                    onKeyDown={e => e.key === "Enter" && generateAI()} 
+                  />
                 </div>
-                <select value={tone} onChange={e => setTone(e.target.value)} style={{width:"auto",minWidth:120}}>
-                  <option value="casual">Casual</option>
-                  <option value="professional">Professional</option>
-                  <option value="humorous">Humorous</option>
-                  <option value="inspirational">Inspirational</option>
-                </select>
-                <button className="btn btn-primary btn-sm" onClick={generateAI} disabled={aiLoading || !topic.trim()}>
-                  {aiLoading ? <span style={{display:"inline-flex",gap:"0.25rem"}}><span className="spinner" /> Generating</span> : "Generate"}
-                </button>
+                <div style={{display:"flex", gap:"0.5rem"}}>
+                  <select 
+                    value={tone} 
+                    onChange={e => setTone(e.target.value)} 
+                    style={{
+                      width:"auto", minWidth:130, borderRadius:10, 
+                      padding:"0.75rem", background:"rgba(6,8,15,0.6)",
+                      border:"1px solid rgba(148,163,184,0.1)", color:"var(--text)"
+                    }}
+                  >
+                    <option value="casual">Casual</option>
+                    <option value="professional">Professional</option>
+                    <option value="humorous">Humorous</option>
+                    <option value="inspirational">Inspirational</option>
+                  </select>
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={generateAI} 
+                    disabled={aiLoading || !topic.trim()}
+                    style={{padding:"0 1.25rem", borderRadius:10}}
+                  >
+                    {aiLoading ? <span className="spinner" /> : "Generate"}
+                  </button>
+                </div>
               </div>
+
               {aiVariations.length > 0 && (
-                <div>
-                  {aiScore && <div style={{display:"flex",gap:"1rem",marginBottom:"0.75rem",fontSize:"0.75rem"}}>
-                    <span style={{
-                      display:"inline-flex",alignItems:"center",gap:"0.375rem",
-                      padding:"0.2rem 0.5rem", borderRadius:999, background:"rgba(99,102,241,0.06)",
-                      color:"#a5b4fc", fontWeight:600,
-                    }}>Brand Score: {aiScore}%</span>
+                <div style={{marginTop:"1.25rem", borderTop:"1px solid rgba(99,102,241,0.1)", paddingTop:"1rem"}}>
+                  <div style={{display:"flex", gap:"1rem", marginBottom:"1rem"}}>
+                    {aiScore && <span style={{
+                      padding:"0.25rem 0.625rem", borderRadius:999, background:"rgba(99,102,241,0.08)",
+                      color:"#a5b4fc", fontWeight:600, fontSize:"0.7rem"
+                    }}>Brand Score: {aiScore}%</span>}
                     {predictedEngagement && <span style={{
-                      display:"inline-flex",alignItems:"center",gap:"0.375rem",
-                      padding:"0.2rem 0.5rem", borderRadius:999, background:"rgba(16,185,129,0.06)",
-                      color:"#6ee7b7", fontWeight:600,
-                    }}>~{predictedEngagement.medium} eng.</span>}
-                  </div>}
-                  {aiVariations.map((v,i) => (
-                    <div key={i} className="ai-variation" onClick={() => useVariation(v)} style={{
-                      padding:"0.625rem 0.875rem", borderRadius:8, border:"1px solid rgba(99,102,241,0.08)",
-                      background:"rgba(6,8,15,0.3)", marginBottom:"0.375rem", fontSize:"0.8rem",
-                      cursor:"pointer", transition:"all 0.15s", lineHeight:1.4,
-                      whiteSpace:"pre-wrap",
-                    }}>{v}</div>
-                  ))}
+                      padding:"0.25rem 0.625rem", borderRadius:999, background:"rgba(16,185,129,0.08)",
+                      color:"#6ee7b7", fontWeight:600, fontSize:"0.7rem"
+                    }}>Est. Engagement: {predictedEngagement.medium}</span>}
+                  </div>
+                  <div style={{display:"flex", flexDirection:"column", gap:"0.625rem"}}>
+                    {aiVariations.map((v,i) => (
+                      <div key={i} className="ai-variation" onClick={() => useVariation(v)} style={{
+                        padding:"0.875rem 1.125rem", borderRadius:10, border:"1px solid rgba(148,163,184,0.06)",
+                        background:"rgba(6,8,15,0.4)", fontSize:"0.85rem", cursor:"pointer", transition:"all 0.2s",
+                        lineHeight:1.5
+                      }}>
+                        {v}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
+          </div>
 
+          {/* Main Content Editor */}
+          <div className="glass card">
             <form action={handleSchedule} ref={formRef}>
               <div className="form-group">
-                <label>Content</label>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0.5rem"}}>
+                  <label style={{margin:0}}>Post Content</label>
+                  <div style={{display:"flex", gap:"0.5rem"}}>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={handleSummarize} disabled={summaryLoading || !content} style={{fontSize:"0.65rem", padding:"0.25rem 0.5rem"}}>
+                      {summaryLoading ? "..." : "📝 Summarize"}
+                    </button>
+                  </div>
+                </div>
                 <div className="textarea-wrap">
-                  <textarea ref={contentRef} name="content" placeholder="What do you want to share? Write a post, paste a URL, or generate with AI above..." maxLength={charMax} rows={4} onChange={e => setCharCount(e.target.value.length)} />
+                  <textarea 
+                    ref={contentRef} 
+                    name="content" 
+                    placeholder="Start writing or choose an AI variation above..." 
+                    maxLength={charMax} 
+                    rows={6} 
+                    value={content}
+                    onChange={e => {
+                      setContent(e.target.value);
+                      setCharCount(e.target.value.length);
+                    }} 
+                    style={{fontSize:"1rem", padding:"1.125rem"}}
+                  />
                   <div className="char-progress"><div className={`fill ${charClass}`} style={{width:`${charPct}%`}} /></div>
                   <div className="char-count-abs">{charCount}/{charMax}</div>
                 </div>
               </div>
-              <div style={{display:"flex",gap:"0.5rem",marginTop:"-0.5rem",marginBottom:"1rem"}}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={handleSummarize} disabled={summaryLoading || !contentRef.current?.value} style={{fontSize:"0.7rem"}}>
-                  {summaryLoading ? "..." : "📝 AI Summarize"}
-                </button>
-              </div>
+
               {summaryResult && (
                 <div style={{
-                  padding:"0.75rem 1rem", borderRadius:"var(--radius-sm)", marginBottom:"1rem",
+                  padding:"1rem", borderRadius:12, marginBottom:"1.25rem",
                   background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.08)",
+                  animation: "slideUp 0.3s ease-out"
                 }}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.5rem"}}>
-                    <span style={{fontSize:"0.7rem",fontWeight:600,color:"#a5b4fc"}}>AI Summary</span>
-                    <span style={{fontSize:"0.65rem",color:"var(--text-muted)"}}>confidence: {summaryResult.confidence}%</span>
+                    <span style={{fontSize:"0.7rem",fontWeight:700,color:"#a5b4fc",textTransform:"uppercase"}}>AI Summary</span>
+                    <span style={{fontSize:"0.65rem",color:"var(--text-muted)"}}>{summaryResult.confidence}% confidence</span>
                   </div>
-                  <p style={{fontSize:"0.8rem",color:"var(--text-secondary)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{summaryResult.summary}</p>
-                  {summaryResult.keyPoints && (
-                    <ul style={{marginTop:"0.5rem",paddingLeft:"1rem",fontSize:"0.75rem",color:"var(--text-muted)",lineHeight:1.8}}>
-                      {summaryResult.keyPoints.map((k,i) => <li key={i}>{k}</li>)}
-                    </ul>
-                  )}
+                  <p style={{fontSize:"0.85rem",color:"var(--text-secondary)",lineHeight:1.6}}>{summaryResult.summary}</p>
                 </div>
               )}
-              <div className="form-group">
-                <label>Platforms</label>
-                <div className="platform-toggles">
-                  {["twitter","linkedin"].map(p => {
-                    const connected = connectedPlatforms[p]
-                    return (
-                      <div key={p} className={`platform-toggle ${platforms[p]?"active":""}`} onClick={() => setPlatforms(prev => ({...prev, [p]:!prev[p]}))} style={{position:"relative"}}>
-                        <input type="checkbox" checked={platforms[p]} readOnly />
-                        <span style={{
-                          width: 6, height: 6, borderRadius: "50%",
-                          background: connected ? "#10b981" : "#5a6380",
-                          display: "inline-block", marginRight: "0.25rem",
-                          boxShadow: connected ? "0 0 6px rgba(16,185,129,0.6)" : "none",
-                          transition: "all 0.3s",
-                        }} />
-                        {p === "twitter" ? "𝕏 Twitter" : "in LinkedIn"}
-                      </div>
-                    )
-                  })}
+
+              <div className="dashboard-grid-wide" style={{marginBottom:"1.5rem"}}>
+                <div className="form-group" style={{margin:0}}>
+                  <label>Platforms</label>
+                  <div className="platform-toggles">
+                    {[
+                      ["twitter","𝕏"], ["linkedin","in"], ["facebook","f"],
+                      ["instagram","📷"], ["threads","◎"],
+                    ].map(([p, icon]) => {
+                      const connected = connectedPlatforms[p]
+                      return (
+                        <div key={p} className={`platform-toggle ${platforms[p]?"active":""}`} onClick={() => setPlatforms(prev => ({...prev, [p]:!prev[p]}))}>
+                          <input type="checkbox" checked={platforms[p]} readOnly />
+                          <span style={{
+                            width: 6, height: 6, borderRadius: "50%",
+                            background: connected ? "#10b981" : "#5a6380",
+                            marginRight: "0.25rem"
+                          }} />
+                          {icon}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-                <div style={{fontSize:"0.7rem",color:"var(--text-muted)",marginTop:"0.375rem",display:"flex",gap:"0.75rem"}}>
-                  {["twitter","linkedin"].map(p => (
-                    <span key={p} style={{display:"flex",alignItems:"center",gap:"0.25rem"}}>
-                      <span style={{
-                        width: 5, height: 5, borderRadius: "50%",
-                        background: connectedPlatforms[p] ? "#10b981" : "#5a6380",
-                        display: "inline-block",
-                      }} />
-                      {connectedPlatforms[p] ? `${p === "twitter" ? "X" : "LinkedIn"} connected` : `${p === "twitter" ? "X" : "LinkedIn"} not connected`}
-                    </span>
-                  ))}
-                  <a href="/app/settings" style={{color:"#a5b4fc",textDecoration:"none",marginLeft:"auto"}}>
-                    {Object.keys(connectedPlatforms).length === 0 ? "Connect accounts →" : ""}
-                  </a>
+                <div className="form-group" style={{margin:0}}>
+                  <label>Schedule Time</label>
+                  <input type="datetime-local" name="scheduledAt" style={{padding:"0.625rem"}} />
                 </div>
               </div>
-              <div className="form-group"><label>Schedule (optional — leave blank for draft)</label><input type="datetime-local" name="scheduledAt" /></div>
-              <button type="submit" disabled={submitting} className="btn btn-primary" style={{width:"100%"}}>
-                {submitting ? "Scheduling..." : "Schedule Post"}
+
+              <button type="submit" disabled={submitting} className="btn btn-primary btn-lg" style={{width:"100%"}}>
+                {submitting ? "Processing..." : "Schedule Post"}
               </button>
             </form>
           </div>
 
+          {/* Quick List of Recent Posts */}
           <div className="glass card">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
-              <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
-                <span>☰</span><h2 style={{fontSize:"1rem",fontWeight:700}}>Posts</h2>
-                <span style={{fontSize:"0.75rem",color:"var(--text-muted)",background:"rgba(148,163,184,0.06)",padding:"0.125rem 0.5rem",borderRadius:999}}>{posts.length}</span>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+              <div style={{display:"flex",alignItems:"center",gap:"0.625rem"}}>
+                <span style={{fontSize:"1.1rem"}}>☰</span>
+                <h2 style={{fontSize:"0.95rem",fontWeight:700}}>Recently Created</h2>
               </div>
               <div style={{display:"flex",gap:"0.5rem"}}>
-                <select value={filter} onChange={e => setFilter(e.target.value)}>
-                  <option value="">All</option>
+                <select 
+                  value={filter} 
+                  onChange={e => setFilter(e.target.value)}
+                  style={{fontSize:"0.75rem", padding:"0.25rem 0.5rem", borderRadius:6}}
+                >
+                  <option value="">All Status</option>
                   <option value="pending">Pending</option>
                   <option value="published">Published</option>
-                  <option value="cancelled">Cancelled</option>
                   <option value="draft">Draft</option>
                 </select>
                 <button className="btn btn-ghost btn-sm" onClick={refreshPosts}>↻</button>
@@ -314,9 +443,9 @@ export default function ContentStudio() {
             </div>
             <div className="posts-list">
               {filtered.length === 0 ? (
-                <div className="empty-state" style={{textAlign:"center",padding:"2rem",color:"var(--text-muted)",fontSize:"0.85rem"}}>📭 No posts yet</div>
+                <div className="empty-state" style={{padding:"2rem"}}>📭 No posts found</div>
               ) : (
-                filtered.slice().reverse().map((p,i) => (
+                filtered.slice().reverse().slice(0, 5).map((p,i) => (
                   <PostItem key={p.id} post={p} index={i} onPublish={handlePublish} onCancel={handleCancel} />
                 ))
               )}
@@ -324,43 +453,45 @@ export default function ContentStudio() {
           </div>
         </div>
 
-        <div>
-          <div className="glass card" style={{marginBottom:"1.5rem"}}>
-            <h3 style={{fontSize:"0.9rem",fontWeight:700,marginBottom:"0.75rem",display:"flex",alignItems:"center",gap:"0.5rem"}}>
-              <span>🤖</span> AI Copilot
+        {/* Right Column: Preview & Insights */}
+        <div style={{display:"flex", flexDirection:"column", gap:"1.5rem"}}>
+          
+          <LivePreview content={content} platforms={platforms} />
+
+          <div className="glass card">
+            <h3 style={{fontSize:"0.9rem",fontWeight:700,marginBottom:"1rem",display:"flex",alignItems:"center",gap:"0.5rem"}}>
+              <span>🤖</span> AI Insights
             </h3>
-            <div className="ai-section cyan">
-              <p style={{fontSize:"0.8rem",color:"var(--text-secondary)",lineHeight:1.6}}>
-                <strong style={{color:"#67e8f9"}}>Best Times</strong><br />
-                {bestTimes.length > 0 ? bestTimes.join(", ") : "Loading..."}
-              </p>
-            </div>
-            <div className="ai-section purple" style={{marginTop:"0.75rem"}}>
-              <p style={{fontSize:"0.8rem",color:"var(--text-secondary)",lineHeight:1.6}}>
-                <strong style={{color:"#a5b4fc"}}>Tip</strong><br />
-                Posts with visuals get 3x more engagement. Try the AI Summarize button below your content box for instant insights.
-              </p>
-            </div>
-            <div style={{marginTop:"0.75rem"}}>
-              <p style={{fontSize:"0.8rem",color:"var(--text-secondary)",lineHeight:1.6}}>
-                <strong style={{color:"#f9a8d4"}}>Auto-Publish</strong><br />
-                Scheduled posts are auto-published every 30 seconds when their time arrives. No manual action needed.
-              </p>
-            </div>
-            <div className="ai-section green" style={{marginTop:"0.75rem"}}>
-              <p style={{fontSize:"0.8rem",color:"var(--text-secondary)",lineHeight:1.6}}>
-                <strong style={{color:"#6ee7b7"}}>Account Status</strong><br />
-                {Object.keys(connectedPlatforms).length === 0 ? (
-                  <a href="/app/settings" style={{color:"#fcd34d",textDecoration:"none"}}>No accounts connected → Connect in Account Hub</a>
-                ) : (
-                  Object.entries(connectedPlatforms).map(([p, connected]) => (
-                    <span key={p} style={{display:"flex",alignItems:"center",gap:"0.375rem",marginTop:"0.25rem"}}>
-                      <span style={{width:6,height:6,borderRadius:"50%",background:connected?"#10b981":"#5a6380",display:"inline-block"}} />
-                      {p === "twitter" ? "X / Twitter" : "LinkedIn"}: {connected ? "Connected — posts will publish live" : "Not connected"}
-                    </span>
-                  ))
-                )}
-              </p>
+            <div style={{display:"flex", flexDirection:"column", gap:"1rem"}}>
+              <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(6,182,212,0.04)", border:"1px solid rgba(6,182,212,0.1)"}}>
+                <div style={{fontSize:"0.7rem", fontWeight:700, color:"#67e8f9", textTransform:"uppercase", marginBottom:"0.375rem"}}>Best Posting Windows</div>
+                <div style={{fontSize:"0.8rem", color:"var(--text-secondary)", lineHeight:1.5}}>
+                  {bestTimes.length > 0 ? bestTimes.join(" · ") : "Analyzing your audience..."}
+                </div>
+              </div>
+              
+              <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(16,185,129,0.04)", border:"1px solid rgba(16,185,129,0.1)"}}>
+                <div style={{fontSize:"0.7rem", fontWeight:700, color:"#6ee7b7", textTransform:"uppercase", marginBottom:"0.375rem"}}>Account Connectivity</div>
+                <div style={{display:"flex", flexDirection:"column", gap:"0.375rem"}}>
+                  {[
+                    ["twitter", "X / Twitter"], ["linkedin", "LinkedIn"],
+                    ["facebook", "Facebook"], ["instagram", "Instagram"],
+                    ["threads", "Threads"],
+                  ].map(([p, label]) => (
+                    <div key={p} style={{display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.75rem", color:"var(--text-secondary)"}}>
+                      <span style={{width:5, height:5, borderRadius:"50%", background:connectedPlatforms[p]?"#10b981":"#5a6380"}} />
+                      {label}: {connectedPlatforms[p] ? "Connected" : "Not Linked"}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(236,72,153,0.04)", border:"1px solid rgba(236,72,153,0.1)"}}>
+                <div style={{fontSize:"0.7rem", fontWeight:700, color:"#f9a8d4", textTransform:"uppercase", marginBottom:"0.375rem"}}>Studio Tip</div>
+                <p style={{fontSize:"0.8rem", color:"var(--text-secondary)", lineHeight:1.5}}>
+                  Posts with conversational tones perform 40% better on LinkedIn. Try switching the AI tone to 'Casual' for better results.
+                </p>
+              </div>
             </div>
           </div>
         </div>

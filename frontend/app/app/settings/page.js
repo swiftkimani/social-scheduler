@@ -3,165 +3,116 @@
 import { useState, useEffect, useCallback } from "react"
 
 const PLATFORMS = [
-  {
-    id: "twitter",
-    name: "X / Twitter",
-    icon: "𝕏",
-    color: "#1da1f2",
-    gradient: "linear-gradient(135deg, #1da1f2, #0d8bd9)",
-    bgGradient: "linear-gradient(135deg, rgba(29,161,242,0.08), rgba(29,161,242,0.02))",
-    description: "Schedule tweets and engage with your audience in real time.",
-    charLimit: 280,
-  },
-  {
-    id: "linkedin",
-    name: "LinkedIn",
-    icon: "in",
-    color: "#0a66c2",
-    gradient: "linear-gradient(135deg, #0a66c2, #004182)",
-    bgGradient: "linear-gradient(135deg, rgba(10,102,194,0.08), rgba(10,102,194,0.02))",
-    description: "Share professional content and grow your business network.",
-    charLimit: 3000,
-  },
+  { id:"twitter", name:"X / Twitter", icon:"𝕏", color:"#1da1f2",
+    gradient:"linear-gradient(135deg,#1da1f2,#0d8bd9)",
+    bgGradient:"linear-gradient(135deg,rgba(29,161,242,0.08),rgba(29,161,242,0.02))",
+    description:"Schedule tweets and engage in real time.", charLimit:280 },
+  { id:"linkedin", name:"LinkedIn", icon:"in", color:"#0a66c2",
+    gradient:"linear-gradient(135deg,#0a66c2,#004182)",
+    bgGradient:"linear-gradient(135deg,rgba(10,102,194,0.08),rgba(10,102,194,0.02))",
+    description:"Share professional content and grow your network.", charLimit:3000 },
+  { id:"facebook", name:"Facebook", icon:"f", color:"#1877f2",
+    gradient:"linear-gradient(135deg,#1877f2,#0d65d9)",
+    bgGradient:"linear-gradient(135deg,rgba(24,119,242,0.08),rgba(24,119,242,0.02))",
+    description:"Post to your timeline and engage your community.", charLimit:63206 },
+  { id:"instagram", name:"Instagram", icon:"📷", color:"#e4405f",
+    gradient:"linear-gradient(135deg,#e4405f,#c13584)",
+    bgGradient:"linear-gradient(135deg,rgba(228,64,95,0.08),rgba(228,64,95,0.02))",
+    description:"Share text stories and visual content.", charLimit:2200 },
+  { id:"threads", name:"Threads", icon:"◎", color:"#101010",
+    gradient:"linear-gradient(135deg,#333,#000)",
+    bgGradient:"linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))",
+    description:"Post text updates and join conversations.", charLimit:500 },
 ]
 
-function AccountCard({ platform, account, onConnect, onDisconnect }) {
-  const [showForm, setShowForm] = useState(false)
-  const [formUser, setFormUser] = useState("")
-  const [formToken, setFormToken] = useState("")
-  const [connecting, setConnecting] = useState(false)
-  const [disconnecting, setDisconnecting] = useState(false)
-
-  async function handleConnect(e) {
-    e.preventDefault()
-    if (!formUser.trim() || !formToken.trim()) return
-    setConnecting(true)
-    try {
-      const r = await fetch("http://localhost:8080/api/accounts/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: platform.id, username: formUser.trim(), avatar: "", token: formToken.trim() }),
-      })
-      if (r.ok) {
-        const data = await r.json()
-        onConnect(data)
-        setShowForm(false)
-        setFormUser("")
-        setFormToken("")
-      }
-    } catch {}
-    setConnecting(false)
-  }
-
-  async function handleDisconnect() {
-    setDisconnecting(true)
-    try {
-      const r = await fetch("http://localhost:8080/api/accounts/disconnect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: platform.id }),
-      })
-      if (r.ok) onDisconnect(platform.id)
-    } catch {}
-    setDisconnecting(false)
-  }
-
-  const isConnected = account !== null
+function AccountCard({ platform, authStatus, onStartAuth }) {
+  const isConnected = authStatus === "authenticated"
+  const isConnecting = authStatus === "in_progress"
 
   return (
     <div className="glass card" style={{
       background: platform.bgGradient,
-      border: isConnected ? `1px solid rgba(16,185,129,0.15)` : `1px solid var(--border)`,
-      position: "relative", overflow: "hidden",
-      transition: "all 0.3s",
+      border: isConnected ? "1px solid rgba(16,185,129,0.15)" : "1px solid var(--border)",
+      position:"relative", overflow:"hidden", transition:"all 0.3s",
     }}>
       {isConnected && <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: 3,
-        background: "linear-gradient(90deg, #10b981, #34d399)",
+        position:"absolute", top:0, left:0, right:0, height:3,
+        background:"linear-gradient(90deg,#10b981,#34d399)",
       }} />}
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"1.25rem"}}>
         <div style={{display:"flex",alignItems:"center",gap:"1rem"}}>
           <div style={{
-            width: 52, height: 52, borderRadius: 14,
-            background: platform.gradient,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: platform.id === "twitter" ? "1.4rem" : "0.9rem",
-            fontWeight: 800, color: "#fff",
-            boxShadow: `0 0 24px ${platform.color}22`,
+            width:52, height:52, borderRadius:14,
+            background:platform.gradient,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:platform.id==="twitter"?"1.4rem":"0.9rem",
+            fontWeight:800,color:"#fff",
+            boxShadow:`0 0 24px ${platform.color}22`,
           }}>{platform.icon}</div>
           <div>
             <h3 style={{fontSize:"1rem",fontWeight:700}}>{platform.name}</h3>
-            {isConnected ? (
-              <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginTop:"0.25rem"}}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: "50%",
-                  background: "#10b981", display: "inline-block",
-                  boxShadow: "0 0 8px rgba(16,185,129,0.5)",
-                }} />
-                <span style={{fontSize:"0.8rem",color:"#6ee7b7",fontWeight:600}}>Connected</span>
-                <a href={`https://${platform.id === "twitter" ? "x.com" : "linkedin.com/in"}/${account.username}`} target="_blank" rel="noopener noreferrer" style={{
-                  fontSize:"0.75rem",color:"#a5b4fc",textDecoration:"none",borderBottom:"1px dotted rgba(165,180,252,0.3)",
-                }}>@{account.username}</a>
-              </div>
-            ) : (
-              <p style={{fontSize:"0.8rem",color:"var(--text-muted)",marginTop:"0.125rem"}}>{platform.description}</p>
-            )}
+            <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginTop:"0.25rem"}}>
+              <span style={{
+                width:8,height:8,borderRadius:"50%",display:"inline-block",
+                background:isConnected?"#10b981":isConnecting?"#fbbf24":"#64748b",
+                boxShadow:isConnected?"0 0 8px rgba(16,185,129,0.5)":"none",
+              }} />
+              <span style={{
+                fontSize:"0.8rem",fontWeight:600,
+                color:isConnected?"#6ee7b7":isConnecting?"#fbbf24":"var(--text-muted)",
+              }}>
+                {isConnected ? "Connected" : isConnecting ? "Connecting..." : "Not Connected"}
+              </span>
+            </div>
           </div>
         </div>
-        {isConnected ? (
-          <button className="btn btn-danger btn-sm" onClick={handleDisconnect} disabled={disconnecting} style={{fontSize:"0.7rem"}}>
-            {disconnecting ? "..." : "Disconnect"}
-          </button>
-        ) : null}
       </div>
 
-      {isConnected ? (
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.75rem"}}>
-          <div style={{
-            padding:"0.75rem", borderRadius:"var(--radius-sm)",
-            background:"rgba(6,8,15,0.3)", textAlign:"center",
-          }}>
-            <div style={{fontSize:"0.65rem",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:"0.25rem"}}>Posts Published</div>
-            <div style={{fontSize:"1.25rem",fontWeight:800,color:"#a5b4fc"}}>—</div>
+      {!isConnected && !isConnecting && (
+        <button
+          className="btn btn-primary"
+          style={{width:"100%"}}
+          onClick={() => onStartAuth(platform.id)}
+        >
+          + Connect {platform.name}
+        </button>
+      )}
+
+      {isConnecting && (
+        <div style={{
+          padding:"1rem", borderRadius:"var(--radius-sm)",
+          background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.15)",
+          textAlign:"center",
+        }}>
+          <div style={{fontSize:"0.85rem",color:"#fbbf24",fontWeight:600,marginBottom:"0.5rem"}}>
+            ⏳ Check your browser — a login window opened
           </div>
-          <div style={{
-            padding:"0.75rem", borderRadius:"var(--radius-sm)",
-            background:"rgba(6,8,15,0.3)", textAlign:"center",
-          }}>
-            <div style={{fontSize:"0.65rem",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:"0.25rem"}}>Limit</div>
-            <div style={{fontSize:"1.25rem",fontWeight:800,color:"#67e8f9"}}>{platform.charLimit}</div>
+          <div style={{fontSize:"0.75rem",color:"var(--text-muted)",lineHeight:1.5}}>
+            Complete the login in the browser window.<br />
+            This page will update automatically when connected.
+          </div>
+          <div style={{marginTop:"0.75rem"}}>
+            <span className="spinner" style={{display:"inline-block"}} />
           </div>
         </div>
-      ) : (
-        <div>
-          {!showForm ? (
-            <button className="btn btn-primary" style={{width:"100%"}} onClick={() => setShowForm(true)}>
-              + Connect {platform.name}
-            </button>
-          ) : (
-            <form onSubmit={handleConnect} style={{
-              padding:"1rem", borderRadius:"var(--radius-sm)",
-              background:"rgba(6,8,15,0.3)", border:"1px solid var(--border)",
-            }}>
-              <div className="form-group">
-                <label>@{platform.name} Username</label>
-                <input value={formUser} onChange={e => setFormUser(e.target.value)} placeholder="yourusername" required />
-              </div>
-              <div className="form-group">
-                <label>Access Token</label>
-                <input value={formToken} onChange={e => setFormToken(e.target.value)} placeholder="Paste your API token..." type="password" required />
-              </div>
-              <div style={{display:"flex",gap:"0.5rem"}}>
-                <button type="submit" className="btn btn-primary btn-sm" disabled={connecting || !formUser.trim() || !formToken.trim()}>
-                  {connecting ? "Connecting..." : "Connect"}
-                </button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>Cancel</button>
-              </div>
-              <p style={{fontSize:"0.7rem",color:"var(--text-muted)",marginTop:"0.75rem",lineHeight:1.5}}>
-                Your token is stored locally and never shared. Generate one from your platform's developer dashboard.
-              </p>
-            </form>
-          )}
+      )}
+
+      {isConnected && (
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.75rem"}}>
+          <div style={{
+            padding:"0.75rem",borderRadius:"var(--radius-sm)",
+            background:"rgba(6,8,15,0.3)",textAlign:"center",
+          }}>
+            <div style={{fontSize:"0.65rem",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:"0.25rem"}}>Status</div>
+            <div style={{fontSize:"0.9rem",fontWeight:700,color:"#6ee7b7"}}>Live</div>
+          </div>
+          <div style={{
+            padding:"0.75rem",borderRadius:"var(--radius-sm)",
+            background:"rgba(6,8,15,0.3)",textAlign:"center",
+          }}>
+            <div style={{fontSize:"0.65rem",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:"0.25rem"}}>Char Limit</div>
+            <div style={{fontSize:"1rem",fontWeight:700,color:"#67e8f9"}}>{platform.charLimit}</div>
+          </div>
         </div>
       )}
     </div>
@@ -169,33 +120,43 @@ function AccountCard({ platform, account, onConnect, onDisconnect }) {
 }
 
 export default function SettingsPage() {
-  const [accounts, setAccounts] = useState([])
+  const [authStatuses, setAuthStatuses] = useState({})
   const [loading, setLoading] = useState(true)
+  const [toasts, setToasts] = useState([])
 
-  const refreshAccounts = useCallback(async () => {
+  function addToast(msg, type="info") {
+    const id = Date.now()
+    setToasts(prev => [...prev, {id, msg, type}])
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000)
+  }
+
+  const refreshStatus = useCallback(async () => {
     try {
-      const r = await fetch("http://localhost:8080/api/accounts")
-      if (r.ok) setAccounts(await r.json())
+      const r = await fetch("http://localhost:8080/api/auth/status")
+      if (r.ok) setAuthStatuses(await r.json())
     } catch {}
     setLoading(false)
   }, [])
 
-  useEffect(() => { refreshAccounts() }, [refreshAccounts])
+  useEffect(() => {
+    refreshStatus()
+    const interval = setInterval(refreshStatus, 2000)
+    return () => clearInterval(interval)
+  }, [refreshStatus])
 
-  const getAccount = (platformId) => accounts.find(a => a.platform === platformId) || null
-
-  const handleConnect = (acct) => {
-    setAccounts(prev => {
-      const filtered = prev.filter(a => a.platform !== acct.platform)
-      return [...filtered, acct]
-    })
+  async function handleStartAuth(platformId) {
+    try {
+      const r = await fetch(`http://localhost:8080/api/auth/${platformId}`, { method:"POST" })
+      const data = await r.json()
+      console.log("[AUTH]", platformId, data)
+      refreshStatus()
+    } catch (e) {
+      console.error("[AUTH] Failed:", e)
+      alert("Failed to start auth. Check the backend is running on port 8080.")
+    }
   }
 
-  const handleDisconnect = (platformId) => {
-    setAccounts(prev => prev.filter(a => a.platform !== platformId))
-  }
-
-  const connectedCount = accounts.filter(a => a.status === "connected").length
+  const connectedCount = Object.values(authStatuses).filter(s => s === "authenticated").length
 
   return (
     <div>
@@ -203,18 +164,18 @@ export default function SettingsPage() {
         <div>
           <h1 style={{fontSize:"1.35rem",fontWeight:800,letterSpacing:"-0.02em"}}>Account Hub</h1>
           <p style={{color:"var(--text-secondary)",fontSize:"0.85rem",marginTop:"0.125rem"}}>
-            Connect your social accounts to enable real publishing
+            Connect your accounts via browser — no API tokens needed
           </p>
         </div>
         <div style={{
           display:"flex",alignItems:"center",gap:"0.5rem",
-          padding:"0.5rem 1rem", borderRadius:"var(--radius-sm)",
-          background:"rgba(6,8,15,0.3)", border:"1px solid var(--border)",
+          padding:"0.5rem 1rem",borderRadius:"var(--radius-sm)",
+          background:"rgba(6,8,15,0.3)",border:"1px solid var(--border)",
         }}>
           <span style={{
-            width: 8, height: 8, borderRadius: "50%",
-            background: connectedCount > 0 ? "#10b981" : "#64748b",
-            boxShadow: connectedCount > 0 ? "0 0 8px rgba(16,185,129,0.5)" : "none",
+            width:8,height:8,borderRadius:"50%",
+            background:connectedCount>0?"#10b981":"#64748b",
+            boxShadow:connectedCount>0?"0 0 8px rgba(16,185,129,0.5)":"none",
           }} />
           <span style={{fontSize:"0.8rem",fontWeight:600,color:"var(--text-secondary)"}}>
             {connectedCount} / {PLATFORMS.length} connected
@@ -230,9 +191,8 @@ export default function SettingsPage() {
             <AccountCard
               key={p.id}
               platform={p}
-              account={getAccount(p.id)}
-              onConnect={handleConnect}
-              onDisconnect={handleDisconnect}
+              authStatus={authStatuses[p.id] || "not_authenticated"}
+              onStartAuth={handleStartAuth}
             />
           ))}
         </div>
@@ -240,27 +200,26 @@ export default function SettingsPage() {
 
       {connectedCount === 0 && !loading && (
         <div className="glass card" style={{
-          marginTop:"1.5rem", textAlign:"center", padding:"2rem",
+          marginTop:"1.5rem",textAlign:"center",padding:"2rem",
           border:"1px dashed rgba(99,102,241,0.15)",
         }}>
           <div style={{fontSize:"2rem",marginBottom:"0.75rem"}}>🔗</div>
           <h3 style={{fontSize:"1rem",fontWeight:700,marginBottom:"0.5rem"}}>No accounts connected yet</h3>
           <p style={{fontSize:"0.85rem",color:"var(--text-muted)",maxWidth:480,margin:"0 auto",lineHeight:1.6}}>
-            Connect your X and LinkedIn accounts to enable real publishing. Posts will be sent directly to your connected platforms when you hit publish.
+            Click "Connect" on any platform above. A browser window will open — log in, and your session will be captured automatically. No passwords stored.
           </p>
         </div>
       )}
 
       <div style={{
-        marginTop:"2rem", padding:"1.25rem", borderRadius:"var(--radius)",
-        background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.08)",
+        marginTop:"2rem",padding:"1.25rem",borderRadius:"var(--radius)",
+        background:"rgba(99,102,241,0.03)",border:"1px solid rgba(99,102,241,0.08)",
       }}>
         <h3 style={{fontSize:"0.85rem",fontWeight:700,marginBottom:"0.5rem",display:"flex",alignItems:"center",gap:"0.5rem"}}>
-          <span>🔒</span> Privacy & Security
+          <span>🔒</span> How It Works
         </h3>
         <p style={{fontSize:"0.8rem",color:"var(--text-muted)",lineHeight:1.6}}>
-          Access tokens are stored locally on your device and are never shared with third parties.
-          You can disconnect any account at any time. For production use, we recommend OAuth 2.0 authentication.
+          Session cookies are saved locally — no passwords or API tokens stored. When your session expires, just click Connect again. Same approach as WhatsApp Web.
         </p>
       </div>
     </div>

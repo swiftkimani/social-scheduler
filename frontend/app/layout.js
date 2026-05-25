@@ -7,6 +7,10 @@ export const metadata = {
   title: "NEXUS AI — Social Intelligence Platform",
   description: "Your AI-Powered Social Media Command Center. Schedule, create, listen, and optimize across every channel.",
   openGraph: { title: "NEXUS AI", description: "AI-Powered Social Media Command Center" },
+  icons: {
+    icon: "/logo.svg",
+    apple: "/logo.svg",
+  },
 };
 
 export default function RootLayout({ children }) {

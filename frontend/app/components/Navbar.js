@@ -26,7 +26,7 @@ export default function Navbar() {
         <div className="navbar-inner">
           {/* Logo */}
           <Link href="/" className="navbar-logo" onClick={closeMobile}>
-            <span className="logo-mark">N</span> NEXUS AI
+            <img src="/logo.svg" alt="Nexus Logo" style={{ width: 34, height: 34 }} /> NEXUS AI
           </Link>
           {/* Desktop navigation links */}
           <nav className="nav-desktop">

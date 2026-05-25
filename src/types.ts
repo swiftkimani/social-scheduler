@@ -1,4 +1,4 @@
-export type Platform = "twitter" | "linkedin"
+export type Platform = "twitter" | "linkedin" | "facebook" | "instagram" | "threads"
 
 export type PostStatus = "draft" | "pending" | "published" | "cancelled"
 

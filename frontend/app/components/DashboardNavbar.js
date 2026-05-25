@@ -9,7 +9,7 @@ export default function DashboardNavbar() {
 
   const sections = [
     { href: "/app", label: "Dashboard", icon: "◉" },
-    { href: "/app/studio", label: "Content Studio", icon: "✎" },
+    { href: "/app/schedule", label: "Content Studio", icon: "✎" },
     { href: "/app/posts", label: "Posts", icon: "☰" },
     { href: "/app/analytics", label: "Analytics", icon: "📊" },
     { href: "/app/intelligence", label: "Intelligence", icon: "⚡" },
@@ -22,7 +22,7 @@ export default function DashboardNavbar() {
     <header className="dashboard-navbar">
       <div className="dashboard-inner">
         <Link href="/" className="dashboard-logo">
-          <span className="logo-mark">N</span> NEXUS AI
+          <img src="/logo.svg" alt="Nexus Logo" style={{ width: 32, height: 32 }} /> NEXUS AI
         </Link>
         <nav className="dashboard-nav">
           <ul className="dashboard-links">

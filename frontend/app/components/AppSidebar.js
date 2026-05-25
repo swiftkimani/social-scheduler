@@ -61,7 +61,7 @@ export default function AppSidebar() {
   return (
     <aside className="sidebar">
       <Link href="/app" className="sidebar-logo">
-        <span className="sidebar-logo-mark">N</span>
+        <img src="/logo.svg" alt="Nexus Logo" style={{ width: 30, height: 30 }} />
         <span className="sidebar-logo-text">NEXUS AI</span>
       </Link>
 

@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -18,8 +19,11 @@ import (
 type Platform string
 
 const (
-	PlatformTwitter  Platform = "twitter"
-	PlatformLinkedIn Platform = "linkedin"
+	PlatformTwitter   Platform = "twitter"
+	PlatformLinkedIn  Platform = "linkedin"
+	PlatformFacebook  Platform = "facebook"
+	PlatformInstagram Platform = "instagram"
+	PlatformThreads   Platform = "threads"
 )
 
 type PostStatus string
@@ -137,7 +141,7 @@ func (s *Scheduler) PublishedContent() []string {
 
 func (s *Scheduler) PlatformUsage() map[Platform]int {
 	s.mu.RLock(); defer s.mu.RUnlock()
-	m := map[Platform]int{PlatformTwitter: 0, PlatformLinkedIn: 0}
+	m := map[Platform]int{PlatformTwitter: 0, PlatformLinkedIn: 0, PlatformFacebook: 0, PlatformInstagram: 0, PlatformThreads: 0}
 	for _, p := range s.data.Posts {
 		for _, pl := range p.Platforms { m[pl]++ }
 	}
@@ -172,17 +176,25 @@ func startAutoPublisher(sched *Scheduler, accts *AccountManager) {
 					if err != nil { continue }
 				}
 				if !now.After(t) { continue }
-				sched.data.Posts[i].Status = StatusPublished
-				pubAt := now.Format(time.RFC3339)
-				sched.data.Posts[i].PublishedAt = &pubAt
-				sched.data.Posts[i].UpdatedAt = pubAt
-				sched.data.Posts[i].Error = nil
-				log.Printf("[AUTO] Published: %.60s", p.Content)
-				for _, platform := range p.Platforms {
-					if accts.GetConnectedPlatforms()[platform] {
-						acct := accts.FindByPlatform(platform)
-						if acct != nil { publishToPlatform(platform, p.Content, acct) }
+
+				// Delegate actual publishing to Node.js CLI (handles browser auth, API, or mock)
+				err = publishViaCLI(p.ID, p.Content)
+				if err != nil {
+					sched.data.Posts[i].Status = StatusPending
+					errStr := err.Error()
+					sched.data.Posts[i].Error = &errStr
+					sched.data.Posts[i].UpdatedAt = now.Format(time.RFC3339)
+					log.Printf("[AUTO] ✗ %s: %v", p.ID, err)
+				} else {
+					sched.data.Posts[i].Status = StatusPublished
+					pubAt := now.Format(time.RFC3339)
+					sched.data.Posts[i].PublishedAt = &pubAt
+					sched.data.Posts[i].UpdatedAt = pubAt
+					sched.data.Posts[i].Error = nil
+					for _, platform := range p.Platforms {
+						accts.UpdateLastPostedAt(platform)
 					}
+					log.Printf("[AUTO] ✓ Published: %.60s", p.Content)
 				}
 			}
 			sched.save()
@@ -192,6 +204,120 @@ func startAutoPublisher(sched *Scheduler, accts *AccountManager) {
 	log.Println("[AUTO] Scheduler running (30s)")
 }
 
+func publishViaCLI(postID, content string) error {
+	useBrowser := os.Getenv("USE_BROWSER_AUTH") == "true"
+	if useBrowser {
+		cwd, _ := os.Getwd()
+		if strings.HasSuffix(cwd, "/backend") || cwd == "backend" {
+			cwd = cwd[:len(cwd)-8]
+		}
+		cmd := exec.Command("npx", "tsx", "src/cli.ts", "post", postID)
+		cmd.Dir = cwd
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("CLI post failed: %s", string(out))
+		}
+		return nil
+	}
+	// Fallback for mock mode — just log it
+	if os.Getenv("USE_MOCK_CLIENTS") == "true" {
+		log.Printf("[MOCK] Would post: %.60s", content)
+		return nil
+	}
+	return fmt.Errorf("no publishing method configured — set USE_BROWSER_AUTH=true and X_USERNAME/X_PASSWORD, or USE_MOCK_CLIENTS=true")
+}
+
+// ─── Creative Content Engine ─────────────────────────────────────────────────
+
+var creativeTopics = []string{
+	"AI in everyday tools",
+	"building in public",
+	"remote work productivity",
+	"simplicity in product design",
+	"technical communication",
+	"data-driven decisions",
+	"community building",
+	"creative problem solving",
+	"design and code",
+	"learning in public",
+	"the future of work",
+	"writing better documentation",
+	"open source contribution",
+	"developer experience",
+	"tech leadership",
+}
+
+func startCreativeEngine(sched *Scheduler, accts *AccountManager) {
+	ticker := time.NewTicker(2 * time.Hour)
+	go func() {
+		generateAndScheduleCreative(sched, accts)
+		for range ticker.C {
+			generateAndScheduleCreative(sched, accts)
+		}
+	}()
+	log.Println("[CREATIVE] Engine running (every 2h)")
+}
+
+func generateAndScheduleCreative(sched *Scheduler, accts *AccountManager) {
+	visible := accts.GetConnectedPlatforms()
+	if !visible[PlatformTwitter] && !visible[PlatformLinkedIn] { return }
+
+	seed := time.Now().Unix()
+	topic := creativeTopics[seed%int64(len(creativeTopics))]
+	tones := []string{"casual", "professional", "playful", "thoughtful"}
+	tone := tones[seed%int64(len(tones))]
+
+	var postHistory []string
+	sched.mu.RLock()
+	for _, p := range sched.data.Posts {
+		if p.Status == StatusPublished {
+			postHistory = append(postHistory, p.Content)
+		}
+	}
+	sched.mu.RUnlock()
+
+	var variations []string
+	var aiSource string
+	var result string
+	sysPrompt := fmt.Sprintf("Generate 4 short social posts about '%s' in a %s tone for posting on X and LinkedIn. Mix of: insightful tip, thought-provoking question, personal story, bold prediction. Keep each under 200 chars. Return JSON array of strings.", topic, tone)
+	if len(postHistory) > 0 {
+		sysPrompt += "\nMatch this style:\n" + strings.Join(lastN(postHistory, 3), "\n")
+	}
+	result, aiSource = aiGenerate(sysPrompt, "Return 4 short social posts as JSON array.", 600, 0.9)
+	if aiSource != "" {
+		json.Unmarshal([]byte(cleanJSONResponse(result)), &variations)
+	}
+	if len(variations) < 4 {
+		variations = []string{
+			fmt.Sprintf("Been deep in %s lately. The surprising part? It's not about the tech — it's about changing how we think. What's your experience?", topic),
+			fmt.Sprintf("Hot take on %s: the best solutions feel obvious in hindsight. The real skill is asking better questions. Thread below 🧵", topic),
+			fmt.Sprintf("Started exploring %s with one assumption, ended up somewhere completely unexpected. That's what I love about building things. #buildinpublic", topic),
+			fmt.Sprintf("If you're ignoring %s, you're leaving potential on the table. Start small, stay curious, iterate. Progress > perfection.", topic),
+		}
+	}
+
+	now := time.Now().UTC()
+	var activePlatforms []Platform
+	if visible[PlatformTwitter] { activePlatforms = append(activePlatforms, PlatformTwitter) }
+	if visible[PlatformLinkedIn] { activePlatforms = append(activePlatforms, PlatformLinkedIn) }
+
+	for i, v := range variations {
+		offset := time.Duration(15+i*60) * time.Minute
+		future := now.Add(offset)
+		futureStr := future.Format("2006-01-02T15:04")
+		sched.SchedulePost(v, activePlatforms, &futureStr)
+		log.Printf("[CREATIVE] ✦ Scheduled #%d at %s UTC", i+1, futureStr)
+	}
+	src := aiSource
+	if src == "" { src = "computed" }
+	log.Printf("[CREATIVE] ✦ Queued %d posts on “%s” (%s tone · %s)", len(variations), topic, tone, src)
+}
+
+func lastN(s []string, n int) []string {
+	if len(s) <= n { return s }
+	return s[len(s)-n:]
+}
+
 // ─── Account Management ─────────────────────────────────────────────────────
 
 type ConnectedAccount struct {
@@ -199,6 +325,8 @@ type ConnectedAccount struct {
 	Username     string   `json:"username"`
 	Avatar       string   `json:"avatar"`
 	AccessToken  string   `json:"accessToken,omitempty"`
+	ApiKey       string   `json:"apiKey,omitempty"`
+	ApiSecret    string   `json:"apiSecret,omitempty"`
 	ConnectedAt  string   `json:"connectedAt"`
 	LastPostedAt *string  `json:"lastPostedAt,omitempty"`
 	Status       string   `json:"status"`
@@ -244,13 +372,15 @@ func (a *AccountManager) List() []ConnectedAccount {
 	return r
 }
 
-func (a *AccountManager) Connect(platform Platform, username, avatar, token string) ConnectedAccount {
+func (a *AccountManager) Connect(platform Platform, username, avatar, token, apiKey, apiSecret string) ConnectedAccount {
 	a.mu.Lock(); defer a.mu.Unlock()
 	for i, acct := range a.data.Accounts {
 		if acct.Platform == platform {
 			a.data.Accounts[i].Username = username
 			a.data.Accounts[i].Avatar = avatar
 			a.data.Accounts[i].AccessToken = token
+			a.data.Accounts[i].ApiKey = apiKey
+			a.data.Accounts[i].ApiSecret = apiSecret
 			a.data.Accounts[i].Status = "connected"
 			a.data.Accounts[i].ConnectedAt = time.Now().UTC().Format(time.RFC3339)
 			a.data.Accounts[i].LastPostedAt = nil
@@ -260,6 +390,7 @@ func (a *AccountManager) Connect(platform Platform, username, avatar, token stri
 	}
 	acct := ConnectedAccount{
 		Platform: platform, Username: username, Avatar: avatar, AccessToken: token,
+		ApiKey: apiKey, ApiSecret: apiSecret,
 		ConnectedAt: time.Now().UTC().Format(time.RFC3339), Status: "connected",
 	}
 	a.data.Accounts = append(a.data.Accounts, acct)
@@ -281,7 +412,7 @@ func (a *AccountManager) Disconnect(platform Platform) bool {
 
 func (a *AccountManager) GetConnectedPlatforms() map[Platform]bool {
 	a.mu.RLock(); defer a.mu.RUnlock()
-	m := map[Platform]bool{PlatformTwitter: false, PlatformLinkedIn: false}
+	m := map[Platform]bool{PlatformTwitter: false, PlatformLinkedIn: false, PlatformFacebook: false, PlatformInstagram: false, PlatformThreads: false}
 	for _, acct := range a.data.Accounts {
 		if acct.Status == "connected" { m[acct.Platform] = true }
 	}
@@ -296,16 +427,98 @@ func (a *AccountManager) FindByPlatform(platform Platform) *ConnectedAccount {
 	return nil
 }
 
+// ─── Real API Publishing ─────────────────────────────────────────────────────
+
 func publishToPlatform(platform Platform, content string, acct *ConnectedAccount) error {
-	log.Printf("[PUBLISH] %s as @%s: %.60s", platform, acct.Username, content)
+	switch platform {
+	case PlatformTwitter:
+		return publishToTwitter(content, acct)
+	case PlatformLinkedIn:
+		return publishToLinkedIn(content, acct)
+	}
+	return fmt.Errorf("unknown platform: %s", platform)
+}
+
+func publishToTwitter(content string, acct *ConnectedAccount) error {
+	if strings.HasPrefix(acct.AccessToken, "pre-configured") {
+		return fmt.Errorf("real X API token required — connect via Account Hub")
+	}
+	if strings.HasPrefix(acct.AccessToken, "AAAAAAAAAAAAAAAAAAAA") {
+		return fmt.Errorf("your Bearer Token is app-only and cannot post tweets — generate a user access token with tweet.write scope at developer.twitter.com")
+	}
+
+	// Try OAuth 2.0 Bearer (user access token with tweet.write)
+	body := map[string]string{"text": content}
+	var buf bytes.Buffer
+	json.NewEncoder(&buf).Encode(body)
+	req, err := http.NewRequest("POST", "https://api.twitter.com/2/tweets", &buf)
+	if err != nil { return err }
+	req.Header.Set("Authorization", "Bearer "+acct.AccessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil { return err }
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		raw, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("X API %d: %s", resp.StatusCode, string(raw))
+	}
+	log.Printf("[PUBLISHED] X as @%s ✓", acct.Username)
 	return nil
+}
+
+func publishToLinkedIn(content string, acct *ConnectedAccount) error {
+	if strings.HasPrefix(acct.AccessToken, "pre-configured") {
+		return fmt.Errorf("real LinkedIn API token required — connect via Account Hub")
+	}
+	body := map[string]any{
+		"author":         "urn:li:person:" + acct.Username,
+		"lifecycleState": "PUBLISHED",
+		"specificContent": map[string]any{
+			"com.linkedin.ugc.ShareContent": map[string]any{
+				"shareCommentary":  map[string]string{"text": content},
+				"shareMediaCategory": "NONE",
+			},
+		},
+		"visibility": map[string]string{
+			"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
+		},
+	}
+	var buf bytes.Buffer
+	json.NewEncoder(&buf).Encode(body)
+	req, err := http.NewRequest("POST", "https://api.linkedin.com/v2/ugcPosts", &buf)
+	if err != nil { return err }
+	req.Header.Set("Authorization", "Bearer "+acct.AccessToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Restli-Protocol-Version", "2.0.0")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil { return err }
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		raw, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("LinkedIn API %d: %s", resp.StatusCode, string(raw))
+	}
+	log.Printf("[PUBLISHED] LinkedIn as @%s ✓", acct.Username)
+	return nil
+}
+
+func (a *AccountManager) UpdateLastPostedAt(platform Platform) {
+	a.mu.Lock(); defer a.mu.Unlock()
+	for i, acct := range a.data.Accounts {
+		if acct.Platform == platform {
+			now := time.Now().UTC().Format(time.RFC3339)
+			a.data.Accounts[i].LastPostedAt = &now
+			a.save()
+			return
+		}
+	}
 }
 
 type ErrorResponse struct{ Error string `json:"error"` }
 
-// ─── OpenAI Client ──────────────────────────────────────────────────────────
+// ─── Multi-Provider AI ──────────────────────────────────────────────────────
 
 var openAIKey string
+var groqKey string
 
 type openAIMessage struct {
 	Role    string `json:"role"`
@@ -321,22 +534,43 @@ type openAIRequest struct {
 
 type openAIResponse struct {
 	Choices []struct {
-		Message struct { Content string } `json:"message"`
+		Message struct{ Content string } `json:"message"`
 	} `json:"choices"`
 }
 
-func initOpenAI() {
+func initAI() {
 	openAIKey = os.Getenv("OPENAI_API_KEY")
+	groqKey = os.Getenv("GROQ_API_KEY")
 	if openAIKey != "" {
-		log.Println("[AI] OpenAI client ready")
-	} else {
-		log.Println("[AI] No OPENAI_API_KEY set — using computed data")
+		log.Println("[AI] OpenAI (gpt-4o-mini) ready")
+	}
+	if groqKey != "" {
+		log.Println("[AI] Groq (Llama 3.3 70B) ready — free tier, no credit card needed")
+	}
+	if openAIKey == "" && groqKey == "" {
+		log.Println("[AI] No AI keys — set OPENAI_API_KEY or GROQ_API_KEY for AI content")
+		log.Println("[AI] Get a free Groq key → https://console.groq.com (no CC required)")
 	}
 }
 
-func callOpenAI(system, user string, maxTokens int, temp float64) (string, error) {
+func callAI(system, user string, maxTokens int, temp float64) (string, string, error) {
+	if openAIKey != "" {
+		result, err := callProvider("https://api.openai.com/v1/chat/completions", "gpt-4o-mini", openAIKey, system, user, maxTokens, temp)
+		if err == nil { return result, "openai", nil }
+		log.Printf("[AI] OpenAI failed: %v", err)
+	}
+	if groqKey != "" {
+		result, err := callProvider("https://api.groq.com/openai/v1/chat/completions", "llama-3.3-70b-versatile", groqKey, system, user, maxTokens, temp)
+		if err == nil { return result, "groq", nil }
+		log.Printf("[AI] Groq failed: %v", err)
+	}
+	return "", "", fmt.Errorf("all AI providers failed")
+}
+
+func callProvider(endpoint, model, apiKey, system, user string, maxTokens int, temp float64) (string, error) {
 	body := openAIRequest{
-		Model: "gpt-4o-mini", Messages: []openAIMessage{
+		Model: model,
+		Messages: []openAIMessage{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
@@ -344,21 +578,46 @@ func callOpenAI(system, user string, maxTokens int, temp float64) (string, error
 	}
 	var buf bytes.Buffer
 	json.NewEncoder(&buf).Encode(body)
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", &buf)
+	req, err := http.NewRequest("POST", endpoint, &buf)
 	if err != nil { return "", err }
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+openAIKey)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil { return "", err }
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	var result openAIResponse
 	if err := json.Unmarshal(raw, &result); err != nil { return "", err }
-	if len(result.Choices) == 0 { return "", fmt.Errorf("no choices") }
+	if len(result.Choices) == 0 { return "", fmt.Errorf("no choices in response") }
 	return result.Choices[0].Message.Content, nil
 }
 
-// ─── Content Generation (Real AI or Computed) ───────────────────────────────
+// ─── Content Generator Helpers ──────────────────────────────────────────────
+
+func aiGenerate(system, user string, maxTokens int, temp float64) (string, string) {
+	result, source, err := callAI(system, user, maxTokens, temp)
+	if err != nil { return "", "" }
+	return result, source
+}
+
+func cleanJSONResponse(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "```json") {
+		s = strings.TrimPrefix(s, "```json")
+		if idx := strings.LastIndex(s, "```"); idx >= 0 {
+			s = strings.TrimSpace(s[:idx])
+		}
+	}
+	if strings.HasPrefix(s, "```") {
+		s = strings.TrimPrefix(s, "```")
+		if idx := strings.LastIndex(s, "```"); idx >= 0 {
+			s = strings.TrimSpace(s[:idx])
+		}
+	}
+	return s
+}
+
+// ─── Content Generation (AI or Computed) ────────────────────────────────────
 
 func handleGenerate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -375,24 +634,22 @@ func handleGenerate(w http.ResponseWriter, r *http.Request) {
 	if req.Tone == "" { req.Tone = "casual" }
 	if req.Platform == "" { req.Platform = "twitter" }
 
-	if openAIKey != "" {
-		sysPrompt := fmt.Sprintf("You are a social media content strategist. Generate 4 variations of a %s post about %s in a %s tone. Each variation should be a different format: tip, thread-starter, question, and announcement. Make them concise and platform-appropriate.", req.Platform, req.Topic, req.Tone)
-		if len(req.PostHistory) > 0 {
-			sysPrompt += "\n\nConsider the user's previous posts for style consistency:\n" + strings.Join(req.PostHistory, "\n")
-		}
-		result, err := callOpenAI(sysPrompt,
-			fmt.Sprintf("Write 4 social media posts about %s for %s. Tone: %s. Return as a JSON array of strings.", req.Topic, req.Platform, req.Tone),
-			800, 0.8)
-		if err == nil {
-			var variations []string
-			if json.Unmarshal([]byte(result), &variations) == nil && len(variations) == 4 {
-				json.NewEncoder(w).Encode(map[string]any{
-					"variations": variations, "brandScore": 92, "format": req.Format,
-					"predictedEngagement": map[string]int{"low": 120, "medium": 340, "high": 890},
-					"source": "openai",
-				})
-				return
-			}
+	sysPrompt := fmt.Sprintf("You are a social media content strategist. Generate 4 variations of a %s post about %s in a %s tone. Each variation should be a different format: tip, thread-starter, question, and announcement. Make them concise and platform-appropriate.", req.Platform, req.Topic, req.Tone)
+	if len(req.PostHistory) > 0 {
+		sysPrompt += "\n\nConsider the user's previous posts for style consistency:\n" + strings.Join(req.PostHistory, "\n")
+	}
+	result, source := aiGenerate(sysPrompt,
+		fmt.Sprintf("Write 4 social media posts about %s for %s. Tone: %s. Return as a JSON array of strings.", req.Topic, req.Platform, req.Tone),
+		800, 0.8)
+	if source != "" {
+		var variations []string
+		if json.Unmarshal([]byte(cleanJSONResponse(result)), &variations) == nil && len(variations) == 4 {
+			json.NewEncoder(w).Encode(map[string]any{
+				"variations": variations, "brandScore": 92, "format": req.Format,
+				"predictedEngagement": map[string]int{"low": 120, "medium": 340, "high": 890},
+				"source": source,
+			})
+			return
 		}
 	}
 
@@ -423,18 +680,18 @@ func handleSummarize(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"topic or context required"}); return
 	}
 
-	if openAIKey != "" && req.Context != "" {
-		result, err := callOpenAI("You are an expert analyst. Summarize the following content concisely with 3-5 key bullet points. Return JSON with fields: summary (string), keyPoints (array of strings).",
+	if req.Context != "" {
+		result, source := aiGenerate("You are an expert analyst. Summarize the following content concisely with 3-5 key bullet points. Return JSON with fields: summary (string), keyPoints (array of strings).",
 			req.Context, 500, 0.5)
-		if err == nil {
+		if source != "" {
 			var parsed struct {
 				Summary   string   `json:"summary"`
 				KeyPoints []string `json:"keyPoints"`
 			}
-			if json.Unmarshal([]byte(result), &parsed) == nil && parsed.Summary != "" {
+			if json.Unmarshal([]byte(cleanJSONResponse(result)), &parsed) == nil && parsed.Summary != "" {
 				json.NewEncoder(w).Encode(map[string]any{
 					"summary": parsed.Summary, "keyPoints": parsed.KeyPoints,
-					"confidence": 94, "source": "openai",
+					"confidence": 94, "source": source,
 				})
 				return
 			}
@@ -449,7 +706,7 @@ func handleSummarize(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(map[string]any{
 		"summary":   summary,
-		"keyPoints": []string{"Content processed from your post history", fmt.Sprintf("%d words analyzed", len(words)), "No AI key configured — add OPENAI_API_KEY for AI summaries"},
+		"keyPoints": []string{"Content processed from your post history", fmt.Sprintf("%d words analyzed", len(words)), "Add GROQ_API_KEY (free) or OPENAI_API_KEY for AI summaries"},
 		"confidence": 85, "wordCount": len(words), "source": "computed",
 	})
 }
@@ -609,7 +866,7 @@ func handleCompetitor(w http.ResponseWriter, r *http.Request) {
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 func main() {
-	initOpenAI()
+	initAI()
 	dataDir := os.Getenv("SCHEDULER_DATA_DIR")
 	if dataDir == "" {
 		cwd, _ := os.Getwd()
@@ -622,14 +879,18 @@ func main() {
 	accts := NewAccountManager(dataDir)
 
 	if len(accts.List()) == 0 {
-		accts.Connect(PlatformTwitter, "swiftkimani", "", "pre-configured")
-		accts.Connect(PlatformLinkedIn, "benard-kimani", "", "pre-configured")
-		log.Println("[ACCOUNTS] Auto-provisioned: @swiftkimani (X), @benard-kimani (LinkedIn)")
+		accts.Connect(PlatformTwitter, "swiftkimani", "", "pre-configured", "", "")
+		accts.Connect(PlatformLinkedIn, "benard-kimani", "", "pre-configured", "", "")
+		accts.Connect(PlatformFacebook, "swiftkimani", "", "pre-configured", "", "")
+		accts.Connect(PlatformInstagram, "swiftkimani", "", "pre-configured", "", "")
+		accts.Connect(PlatformThreads, "swiftkimani", "", "pre-configured", "", "")
+		log.Println("[ACCOUNTS] Auto-provisioned: X, LinkedIn, Facebook, Instagram, Threads")
 	}
 
 	ctx := contextWithScheduler(sched)
 
 	startAutoPublisher(sched, accts)
+	startCreativeEngine(sched, accts)
 
 	mux := http.NewServeMux()
 
@@ -650,11 +911,8 @@ func main() {
 	mux.HandleFunc("POST /api/posts/{id}/publish", func(w http.ResponseWriter, r *http.Request) {
 		post := sched.PublishPost(r.PathValue("id"))
 		if post == nil { w.WriteHeader(404); json.NewEncoder(w).Encode(ErrorResponse{"not found"}); return }
-		for _, platform := range post.Platforms {
-			if accts.GetConnectedPlatforms()[platform] {
-				acct := accts.FindByPlatform(platform)
-				if acct != nil { publishToPlatform(platform, post.Content, acct) }
-			}
+		if err := publishViaCLI(post.ID, post.Content); err != nil {
+			log.Printf("[API] ✗ publish %s: %v", post.ID, err)
 		}
 		json.NewEncoder(w).Encode(post)
 	})
@@ -668,11 +926,11 @@ func main() {
 	// Accounts
 	mux.HandleFunc("GET /api/accounts", func(w http.ResponseWriter, r *http.Request) { json.NewEncoder(w).Encode(accts.List()) })
 	mux.HandleFunc("POST /api/accounts/connect", func(w http.ResponseWriter, r *http.Request) {
-		var req struct { Platform Platform `json:"platform"`; Username string `json:"username"`; Avatar string `json:"avatar"`; Token string `json:"token"` }
+		var req struct { Platform Platform `json:"platform"`; Username string `json:"username"`; Avatar string `json:"avatar"`; Token string `json:"token"`; ApiKey string `json:"apiKey"`; ApiSecret string `json:"apiSecret"` }
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil { w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid JSON"}); return }
-		if req.Platform != PlatformTwitter && req.Platform != PlatformLinkedIn { w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid platform"}); return }
+		if req.Platform != PlatformTwitter && req.Platform != PlatformLinkedIn && req.Platform != PlatformFacebook && req.Platform != PlatformInstagram && req.Platform != PlatformThreads { w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid platform"}); return }
 		if req.Username == "" || req.Token == "" { w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"username and token required"}); return }
-		w.WriteHeader(201); json.NewEncoder(w).Encode(accts.Connect(req.Platform, req.Username, req.Avatar, req.Token))
+		w.WriteHeader(201); json.NewEncoder(w).Encode(accts.Connect(req.Platform, req.Username, req.Avatar, req.Token, req.ApiKey, req.ApiSecret))
 	})
 	mux.HandleFunc("POST /api/accounts/disconnect", func(w http.ResponseWriter, r *http.Request) {
 		var req struct{ Platform Platform `json:"platform"` }
@@ -681,6 +939,61 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]bool{"success": true})
 	})
 	mux.HandleFunc("GET /api/accounts/status", func(w http.ResponseWriter, r *http.Request) { json.NewEncoder(w).Encode(accts.GetConnectedPlatforms()) })
+
+	// ─── Browser Auth API ─────────────────────────────────────────────────────
+	var authInProgress sync.Map
+
+	validPlatforms := map[string]bool{"x": true, "twitter": true, "linkedin": true, "facebook": true, "instagram": true, "threads": true}
+	mappedPlatform := map[string]string{"x": "x", "twitter": "x", "linkedin": "linkedin", "facebook": "facebook", "instagram": "instagram", "threads": "threads"}
+
+	mux.HandleFunc("POST /api/auth/{platform}", func(w http.ResponseWriter, r *http.Request) {
+		platform := r.PathValue("platform")
+		if !validPlatforms[platform] {
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(ErrorResponse{"Invalid platform"})
+			return
+		}
+		cookieDir := mappedPlatform[platform]
+		cookieFile := fmt.Sprintf("%s/cookies/%s.json", dataDir, cookieDir)
+
+		if _, err := os.Stat(cookieFile); err == nil {
+			json.NewEncoder(w).Encode(map[string]any{"status": "already_authenticated"})
+			return
+		}
+		if _, loaded := authInProgress.LoadOrStore(platform, true); loaded {
+			json.NewEncoder(w).Encode(map[string]any{"status": "in_progress"})
+			return
+		}
+		go func() {
+			defer authInProgress.Delete(platform)
+			projectRoot := strings.TrimSuffix(dataDir, "/data")
+			cmd := exec.Command("npx", "tsx", "src/platforms/auth.ts", platform)
+			cmd.Dir = projectRoot
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				log.Printf("[AUTH] ✗ %s: %v", platform, err)
+			} else {
+				log.Printf("[AUTH] ✓ %s authenticated", platform)
+			}
+		}()
+		json.NewEncoder(w).Encode(map[string]any{"status": "started", "message": "Browser opened — complete login in the window"})
+	})
+
+	mux.HandleFunc("GET /api/auth/status", func(w http.ResponseWriter, r *http.Request) {
+		status := map[string]string{}
+		for p, cookieDir := range mappedPlatform {
+			cf := fmt.Sprintf("%s/cookies/%s.json", dataDir, cookieDir)
+			if _, err := os.Stat(cf); err == nil {
+				status[p] = "authenticated"
+			} else if _, inProg := authInProgress.Load(p); inProg {
+				status[p] = "in_progress"
+			} else {
+				status[p] = "not_authenticated"
+			}
+		}
+		json.NewEncoder(w).Encode(status)
+	})
 
 	// NEXUS AI (all real data, no random mocks)
 	mux.HandleFunc("POST /api/nexus/generate", ctx(handleGenerate))
@@ -691,17 +1004,34 @@ func main() {
 	mux.HandleFunc("GET /api/nexus/listening", ctx(handleListening))
 	mux.HandleFunc("GET /api/nexus/automation/playbooks", handleAutomationPlaybooks)
 	mux.HandleFunc("GET /api/nexus/competitor", ctx(handleCompetitor))
+	mux.HandleFunc("POST /api/nexus/creative/generate", func(w http.ResponseWriter, r *http.Request) {
+		generateAndScheduleCreative(sched, accts)
+		src := "computed"
+		if openAIKey != "" { src = "openai" } else if groqKey != "" { src = "groq" }
+		json.NewEncoder(w).Encode(map[string]any{"status": "creative batch generated", "source": src})
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" { port = "8080" }
 
-	fmt.Printf("\n  ╔══════════════════════════════╗")
-	fmt.Printf("\n  ║     NEXUS AI  —  API v2      ║")
-	fmt.Printf("\n  ║     No Mock Data. Real AI.   ║")
-	fmt.Printf("\n  ╚══════════════════════════════╝")
-	fmt.Printf("\n\n  AI: ")
-	if openAIKey != "" { fmt.Printf("OpenAI (gpt-4o-mini)") } else { fmt.Printf("Computed (no key)") }
-	fmt.Printf("\n  Posts: %d\n  Port: %s\n\n", len(sched.ListPosts("")), port)
+	fmt.Printf("\n  ╔══════════════════════════════════════╗")
+	fmt.Printf("\n  ║     NEXUS AI  —  Intelligence Engine  ║")
+	fmt.Printf("\n  ║     No Mock Data. Real AI.            ║")
+	fmt.Printf("\n  ╚══════════════════════════════════════╝")
+
+	aiStatus := "Computed (no AI key)"
+	if openAIKey != "" && groqKey != "" { aiStatus = "OpenAI + Groq (dual)" } else if openAIKey != "" { aiStatus = "OpenAI (gpt-4o-mini)" } else if groqKey != "" { aiStatus = "Groq (Llama 3.3 70B — free)" }
+	fmt.Printf("\n\n  ■ AI:      %s", aiStatus)
+	fmt.Printf("\n  ■ Posts:   %d", len(sched.ListPosts("")))
+	fmt.Printf("\n  ■ Port:    %s", port)
+	fmt.Printf("\n  ■ Accounts: X, LinkedIn, Facebook, Instagram, Threads")
+	fmt.Printf("\n")
+	fmt.Printf("\n  ── BROWSER AUTH ─────────────────────────")
+	fmt.Printf("\n    Open http://localhost:%s/app/settings", port)
+	fmt.Printf("\n    Click 'Connect' on any platform → browser opens → you login")
+	fmt.Printf("\n    No passwords stored. Auto-publish uses saved session.")
+	fmt.Printf("\n  ────────────────────────────────────────")
+	fmt.Printf("\n\n")
 	log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))
 }
 

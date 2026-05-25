@@ -62,7 +62,7 @@ export default function PostManager({ initialPosts }) {
   const [charCount, setCharCount] = useState(0)
   const [toasts, setToasts] = useState([])
   const [submitting, setSubmitting] = useState(false)
-  const [platforms, setPlatforms] = useState({ twitter: true, linkedin: false })
+  const [platforms, setPlatforms] = useState({ twitter: true, linkedin: false, facebook: false, instagram: false, threads: false })
   const formRef = useRef(null)
   const toastId = useRef(0)
 
@@ -197,20 +197,22 @@ export default function PostManager({ initialPosts }) {
               <div className="form-group">
                 <label>Platforms</label>
                 <div className="platform-toggles">
-                  <div
-                    className={`platform-toggle ${platforms.twitter ? "active" : ""}`}
-                    onClick={() => togglePlatform("twitter")}
-                  >
-                    <input type="checkbox" name="platforms" value="twitter" checked={platforms.twitter} readOnly />
-                    𝕏 Twitter
-                  </div>
-                  <div
-                    className={`platform-toggle ${platforms.linkedin ? "active" : ""}`}
-                    onClick={() => togglePlatform("linkedin")}
-                  >
-                    <input type="checkbox" name="platforms" value="linkedin" checked={platforms.linkedin} readOnly />
-                    in LinkedIn
-                  </div>
+                  {[
+                    ["twitter","𝕏","X / Twitter"],
+                    ["linkedin","in","LinkedIn"],
+                    ["facebook","f","Facebook"],
+                    ["instagram","📷","Instagram"],
+                    ["threads","◎","Threads"],
+                  ].map(([id, icon, label]) => (
+                    <div
+                      key={id}
+                      className={`platform-toggle ${platforms[id] ? "active" : ""}`}
+                      onClick={() => togglePlatform(id)}
+                    >
+                      <input type="checkbox" name="platforms" value={id} checked={platforms[id]} readOnly />
+                      {icon} {label}
+                    </div>
+                  ))}
                 </div>
               </div>
               <div className="form-group">
