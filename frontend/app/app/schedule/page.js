@@ -41,6 +41,9 @@ export default function ContentStudio() {
   const contentRef = useRef(null)
   const [bestTimes, setBestTimes] = useState([])
   const [connectedPlatforms, setConnectedPlatforms] = useState({})
+  const [summaryText, setSummaryText] = useState("")
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryResult, setSummaryResult] = useState(null)
 
   const addToast = useCallback((msg, type) => {
     const id = Date.now()
@@ -87,6 +90,24 @@ export default function ContentStudio() {
     finally { setAiLoading(false) }
   }
 
+  async function handleSummarize() {
+    const text = contentRef.current?.value
+    if (!text || text.length < 10) { addToast("Write at least 10 characters to summarize", "error"); return }
+    setSummaryLoading(true)
+    try {
+      const r = await fetch("http://localhost:8080/api/nexus/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: text.slice(0, 100), context: text.slice(0, 500) }),
+      })
+      if (r.ok) {
+        const d = await r.json()
+        setSummaryResult(d)
+      } else { addToast("Summary failed", "error") }
+    } catch { addToast("Error generating summary", "error") }
+    setSummaryLoading(false)
+  }
+
   function useVariation(text) {
     if (contentRef.current) { contentRef.current.value = text; setCharCount(text.length) }
     setAiVariations([])
@@ -119,14 +140,35 @@ export default function ContentStudio() {
   }
 
   const filtered = filter ? posts.filter(p => p.status === filter) : posts
-  const charClass = charCount > 280 ? "danger" : charCount > 200 ? "warning" : ""
+  const charMax = 3000
+  const charPct = Math.min((charCount / charMax) * 100, 100)
+  const charClass = charCount > 280 ? charCount > 2600 ? "danger" : "warn" : ""
+  const pendingAuto = posts.filter(p => p.status === "pending" && p.scheduledAt).length
 
   return (
     <div>
       <div className="toast-container">{toasts.map(t => (
         <div key={t.id} className={`toast toast-${t.type}`} onClick={() => setToasts(p => p.filter(x => x.id !== t.id))}>{t.type === "success" ? "✓" : "✕"} {t.msg}</div>
       ))}</div>
-      <div className="app-topbar"><div><h1>Content Studio</h1><p>Create and schedule AI-powered posts</p></div></div>
+      <div className="app-topbar">
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginBottom:"0.25rem"}}>
+            <h1 style={{fontSize:"1.35rem",fontWeight:800,letterSpacing:"-0.02em"}}>Content Studio</h1>
+            {pendingAuto > 0 && (
+              <span style={{
+                display:"inline-flex",alignItems:"center",gap:"0.25rem",
+                padding:"0.15rem 0.5rem", borderRadius:999,
+                background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.1)",
+                fontSize:"0.65rem", fontWeight:600, color:"#6ee7b7",
+              }}>
+                <span style={{width:4,height:4,borderRadius:"50%",background:"#10b981",display:"inline-block",animation:"pulse 2s infinite"}} />
+                {pendingAuto} auto-publish queued
+              </span>
+            )}
+          </div>
+          <p style={{color:"var(--text-secondary)",fontSize:"0.85rem"}}>Create and schedule AI-powered posts</p>
+        </div>
+      </div>
       <div className="dashboard-grid">
         <div>
           <div className="glass card" style={{marginBottom:"1.5rem"}}>
@@ -149,19 +191,30 @@ export default function ContentStudio() {
                   <option value="humorous">Humorous</option>
                   <option value="inspirational">Inspirational</option>
                 </select>
-                <button className="btn btn-primary btn-sm" onClick={generateAI} disabled={aiLoading || !topic.trim()}>{aiLoading ? "..." : "Generate"}</button>
+                <button className="btn btn-primary btn-sm" onClick={generateAI} disabled={aiLoading || !topic.trim()}>
+                  {aiLoading ? <span style={{display:"inline-flex",gap:"0.25rem"}}><span className="spinner" /> Generating</span> : "Generate"}
+                </button>
               </div>
               {aiVariations.length > 0 && (
                 <div>
                   {aiScore && <div style={{display:"flex",gap:"1rem",marginBottom:"0.75rem",fontSize:"0.75rem"}}>
-                    <span style={{color:"#a5b4fc"}}>Brand Score: {aiScore}%</span>
-                    {predictedEngagement && <span style={{color:"#6ee7b7"}}>Predicted: {predictedEngagement.medium} eng.</span>}
+                    <span style={{
+                      display:"inline-flex",alignItems:"center",gap:"0.375rem",
+                      padding:"0.2rem 0.5rem", borderRadius:999, background:"rgba(99,102,241,0.06)",
+                      color:"#a5b4fc", fontWeight:600,
+                    }}>Brand Score: {aiScore}%</span>
+                    {predictedEngagement && <span style={{
+                      display:"inline-flex",alignItems:"center",gap:"0.375rem",
+                      padding:"0.2rem 0.5rem", borderRadius:999, background:"rgba(16,185,129,0.06)",
+                      color:"#6ee7b7", fontWeight:600,
+                    }}>~{predictedEngagement.medium} eng.</span>}
                   </div>}
                   {aiVariations.map((v,i) => (
                     <div key={i} className="ai-variation" onClick={() => useVariation(v)} style={{
                       padding:"0.625rem 0.875rem", borderRadius:8, border:"1px solid rgba(99,102,241,0.08)",
                       background:"rgba(6,8,15,0.3)", marginBottom:"0.375rem", fontSize:"0.8rem",
                       cursor:"pointer", transition:"all 0.15s", lineHeight:1.4,
+                      whiteSpace:"pre-wrap",
                     }}>{v}</div>
                   ))}
                 </div>
@@ -171,9 +224,34 @@ export default function ContentStudio() {
             <form action={handleSchedule} ref={formRef}>
               <div className="form-group">
                 <label>Content</label>
-                <textarea ref={contentRef} name="content" placeholder="What do you want to share?" maxLength={3000} rows={3} onChange={e => setCharCount(e.target.value.length)} />
-                <div className={`char-count ${charClass}`}>{charCount} / 3000</div>
+                <div className="textarea-wrap">
+                  <textarea ref={contentRef} name="content" placeholder="What do you want to share? Write a post, paste a URL, or generate with AI above..." maxLength={charMax} rows={4} onChange={e => setCharCount(e.target.value.length)} />
+                  <div className="char-progress"><div className={`fill ${charClass}`} style={{width:`${charPct}%`}} /></div>
+                  <div className="char-count-abs">{charCount}/{charMax}</div>
+                </div>
               </div>
+              <div style={{display:"flex",gap:"0.5rem",marginTop:"-0.5rem",marginBottom:"1rem"}}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={handleSummarize} disabled={summaryLoading || !contentRef.current?.value} style={{fontSize:"0.7rem"}}>
+                  {summaryLoading ? "..." : "📝 AI Summarize"}
+                </button>
+              </div>
+              {summaryResult && (
+                <div style={{
+                  padding:"0.75rem 1rem", borderRadius:"var(--radius-sm)", marginBottom:"1rem",
+                  background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.08)",
+                }}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.5rem"}}>
+                    <span style={{fontSize:"0.7rem",fontWeight:600,color:"#a5b4fc"}}>AI Summary</span>
+                    <span style={{fontSize:"0.65rem",color:"var(--text-muted)"}}>confidence: {summaryResult.confidence}%</span>
+                  </div>
+                  <p style={{fontSize:"0.8rem",color:"var(--text-secondary)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{summaryResult.summary}</p>
+                  {summaryResult.keyPoints && (
+                    <ul style={{marginTop:"0.5rem",paddingLeft:"1rem",fontSize:"0.75rem",color:"var(--text-muted)",lineHeight:1.8}}>
+                      {summaryResult.keyPoints.map((k,i) => <li key={i}>{k}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
               <div className="form-group">
                 <label>Platforms</label>
                 <div className="platform-toggles">
@@ -210,8 +288,10 @@ export default function ContentStudio() {
                   </a>
                 </div>
               </div>
-              <div className="form-group"><label>Schedule</label><input type="datetime-local" name="scheduledAt" /></div>
-              <button type="submit" disabled={submitting} className="btn btn-primary">{submitting ? "..." : "Schedule Post"}</button>
+              <div className="form-group"><label>Schedule (optional — leave blank for draft)</label><input type="datetime-local" name="scheduledAt" /></div>
+              <button type="submit" disabled={submitting} className="btn btn-primary" style={{width:"100%"}}>
+                {submitting ? "Scheduling..." : "Schedule Post"}
+              </button>
             </form>
           </div>
 
@@ -245,7 +325,6 @@ export default function ContentStudio() {
         </div>
 
         <div>
-          {/* AI Copilot Panel */}
           <div className="glass card" style={{marginBottom:"1.5rem"}}>
             <h3 style={{fontSize:"0.9rem",fontWeight:700,marginBottom:"0.75rem",display:"flex",alignItems:"center",gap:"0.5rem"}}>
               <span>🤖</span> AI Copilot
@@ -259,13 +338,13 @@ export default function ContentStudio() {
             <div className="ai-section purple" style={{marginTop:"0.75rem"}}>
               <p style={{fontSize:"0.8rem",color:"var(--text-secondary)",lineHeight:1.6}}>
                 <strong style={{color:"#a5b4fc"}}>Tip</strong><br />
-                Posts with visuals get 3x more engagement. Try the Visual Studio module for AI-generated images.
+                Posts with visuals get 3x more engagement. Try the AI Summarize button below your content box for instant insights.
               </p>
             </div>
             <div style={{marginTop:"0.75rem"}}>
               <p style={{fontSize:"0.8rem",color:"var(--text-secondary)",lineHeight:1.6}}>
-                <strong style={{color:"#f9a8d4"}}>Platform Limits</strong><br />
-                Twitter: 280 chars · LinkedIn: 3,000 chars
+                <strong style={{color:"#f9a8d4"}}>Auto-Publish</strong><br />
+                Scheduled posts are auto-published every 30 seconds when their time arrives. No manual action needed.
               </p>
             </div>
             <div className="ai-section green" style={{marginTop:"0.75rem"}}>
@@ -276,11 +355,7 @@ export default function ContentStudio() {
                 ) : (
                   Object.entries(connectedPlatforms).map(([p, connected]) => (
                     <span key={p} style={{display:"flex",alignItems:"center",gap:"0.375rem",marginTop:"0.25rem"}}>
-                      <span style={{
-                        width: 6, height: 6, borderRadius: "50%",
-                        background: connected ? "#10b981" : "#5a6380",
-                        display: "inline-block",
-                      }} />
+                      <span style={{width:6,height:6,borderRadius:"50%",background:connected?"#10b981":"#5a6380",display:"inline-block"}} />
                       {p === "twitter" ? "X / Twitter" : "LinkedIn"}: {connected ? "Connected — posts will publish live" : "Not connected"}
                     </span>
                   ))
