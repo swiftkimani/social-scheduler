@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.next/
+data/schedule.json
+*.log
+.env
+tmp/

@@ -1,0 +1,33 @@
+{
+  "name": "social-scheduler-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OpenCode-powered social media scheduling agent",
+  "type": "module",
+  "scripts": {
+    "cli": "tsx src/cli.ts",
+    "schedule": "tsx src/cli.ts schedule",
+    "list": "tsx src/cli.ts list",
+    "cancel": "tsx src/cli.ts cancel",
+    "post": "tsx src/cli.ts post",
+    "build": "tsc",
+    "ui": "tsx src/server.ts",
+    "dev": "tsx watch src/cli.ts",
+    "backend": "cd backend && go run .",
+    "frontend": "cd frontend && npm run dev",
+    "start-all": " concurrently \"npm run backend\" \"npm run frontend\""
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.15.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.0",
+    "openai": "^4.73.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
