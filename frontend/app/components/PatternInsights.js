@@ -7,7 +7,7 @@ export default function PatternInsights() {
   const [reason, setReason] = useState("")
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/ai/predict")
+    fetch("/api/ai/predict")
       .then((r) => r.json())
       .then((data) => {
         setTimes(data.bestTimes || [])

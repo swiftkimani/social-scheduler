@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 const API = process.env.GO_API || "http://localhost:8080"
+// Note: this is a server-side route, not a client-side fetch
 
 export async function GET() {
   try {

@@ -4,10 +4,9 @@
       "platform": "twitter",
       "username": "swiftkimani",
       "avatar": "",
-      "accessToken": "AAAAAAAAAAAAAAAAAAAAAL879wEAAAAAnJwQjatQE5tKhAXOwv6bbN7BRlE%3D9WtnoArBg8lzlj8Jv7F114O6sKh6rRb0F2tUrBCDR4VzQy9bBM",
-      "apiKey": "OUi3qVOso0A19FN94YfTSlENJ",
-      "apiSecret": "dMv1pd9BgAoEIp2psPjH7AUwaynr0o4dYihyPc2omARw8jFsk6",
-      "connectedAt": "2026-05-25T12:00:00Z",
+      "accessToken": "pre-configured",
+      "connectedAt": "2026-05-25T11:34:49Z",
+      "lastPostedAt": "2026-05-25T11:38:28Z",
       "status": "connected"
     },
     {
@@ -15,7 +14,32 @@
       "username": "benard-kimani",
       "avatar": "",
       "accessToken": "pre-configured",
-      "connectedAt": "2026-05-25T09:51:22Z",
+      "connectedAt": "2026-05-25T11:34:49Z",
+      "lastPostedAt": "2026-05-25T11:38:28Z",
+      "status": "connected"
+    },
+    {
+      "platform": "facebook",
+      "username": "swiftkimani",
+      "avatar": "",
+      "accessToken": "pre-configured",
+      "connectedAt": "2026-05-25T11:34:49Z",
+      "status": "connected"
+    },
+    {
+      "platform": "instagram",
+      "username": "swiftkimani",
+      "avatar": "",
+      "accessToken": "pre-configured",
+      "connectedAt": "2026-05-25T11:34:49Z",
+      "status": "connected"
+    },
+    {
+      "platform": "threads",
+      "username": "swiftkimani",
+      "avatar": "",
+      "accessToken": "pre-configured",
+      "connectedAt": "2026-05-25T11:34:49Z",
       "status": "connected"
     }
   ]

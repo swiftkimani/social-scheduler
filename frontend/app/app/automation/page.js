@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 export default function AutomationStudio() {
   const [playbooks, setPlaybooks] = useState([])
   useEffect(() => {
-    fetch("http://localhost:8080/api/nexus/automation/playbooks").then(r=>r.json()).then(d => setPlaybooks(d.playbooks || [])).catch(()=>{})
+    fetch("/api/nexus/automation/playbooks").then(r=>r.json()).then(d => setPlaybooks(d.playbooks || [])).catch(()=>{})
   }, [])
 
   return (

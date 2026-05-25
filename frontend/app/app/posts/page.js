@@ -105,13 +105,13 @@ export default function PostsPage() {
   useEffect(() => { refresh() }, [refresh])
 
   async function handlePublish(id) {
-    const res = await fetch(`http://localhost:8080/api/posts/${id}/publish`, { method: "POST" })
+    const res = await fetch(`/api/posts/${id}/publish`, { method: "POST" })
     if (res.ok) { addToast("Published!", "success"); refresh() }
     else addToast("Failed", "error")
   }
 
   async function handleCancel(id) {
-    const res = await fetch(`http://localhost:8080/api/posts/${id}/cancel`, { method: "POST" })
+    const res = await fetch(`/api/posts/${id}/cancel`, { method: "POST" })
     if (res.ok) { addToast("Cancelled", "success"); refresh() }
     else addToast("Failed", "error")
   }

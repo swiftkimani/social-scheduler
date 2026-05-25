@@ -24,8 +24,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetch("/api/stats").then(r=>r.json()).then(setStats).catch(()=>{})
-    fetch("http://localhost:8080/api/nexus/analytics").then(r=>r.json()).then(setAnalytics).catch(()=>{})
-    fetch("http://localhost:8080/api/accounts").then(r=>r.json()).then(setConnectedAccounts).catch(()=>{})
+    fetch("/api/nexus/analytics").then(r=>r.json()).then(setAnalytics).catch(()=>{})
+    fetch("/api/accounts").then(r=>r.json()).then(setConnectedAccounts).catch(()=>{})
   }, [])
 
   const cards = [

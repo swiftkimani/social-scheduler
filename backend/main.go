@@ -8,12 +8,17 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dghubble/oauth1"
+	twitterOAuth "github.com/dghubble/oauth1/twitter"
+	"github.com/joho/godotenv"
 )
 
 type Platform string
@@ -177,25 +182,52 @@ func startAutoPublisher(sched *Scheduler, accts *AccountManager) {
 				}
 				if !now.After(t) { continue }
 
-				// Delegate actual publishing to Node.js CLI (handles browser auth, API, or mock)
-				err = publishViaCLI(p.ID, p.Content)
-				if err != nil {
-					sched.data.Posts[i].Status = StatusPending
-					errStr := err.Error()
-					sched.data.Posts[i].Error = &errStr
-					sched.data.Posts[i].UpdatedAt = now.Format(time.RFC3339)
-					log.Printf("[AUTO] ✗ %s: %v", p.ID, err)
-				} else {
-					sched.data.Posts[i].Status = StatusPublished
-					pubAt := now.Format(time.RFC3339)
-					sched.data.Posts[i].PublishedAt = &pubAt
-					sched.data.Posts[i].UpdatedAt = pubAt
-					sched.data.Posts[i].Error = nil
-					for _, platform := range p.Platforms {
-						accts.UpdateLastPostedAt(platform)
-					}
-					log.Printf("[AUTO] ✓ Published: %.60s", p.Content)
+				// Try direct API publishing per-platform (Twitter OAuth, etc.)
+			// For platforms without API credentials, fall back to CLI
+			var platformsForCLI []Platform
+			var pubErr error
+			for _, platform := range p.Platforms {
+				acct := accts.FindByPlatform(platform)
+				if acct == nil || strings.HasPrefix(acct.AccessToken, "pre-configured") {
+					platformsForCLI = append(platformsForCLI, platform)
+					continue
 				}
+				// Skip Twitter if OAuth tokens aren't actually loaded
+				if platform == PlatformTwitter && twitterAccessToken == "" {
+					platformsForCLI = append(platformsForCLI, platform)
+					continue
+				}
+				if err := publishToPlatform(platform, p.Content, acct); err != nil {
+					pubErr = err
+					platformsForCLI = append(platformsForCLI, platform)
+				} else {
+					accts.UpdateLastPostedAt(platform)
+				}
+			}
+			// Fall back to CLI for platforms that need browser posting
+			if len(platformsForCLI) > 0 {
+				if err := publishViaCLI(p.ID, p.Content); err != nil {
+					pubErr = err
+				}
+			}
+
+			if pubErr != nil {
+				sched.data.Posts[i].Status = StatusPending
+				errStr := pubErr.Error()
+				sched.data.Posts[i].Error = &errStr
+				sched.data.Posts[i].UpdatedAt = now.Format(time.RFC3339)
+				log.Printf("[AUTO] ✗ %s: %v", p.ID, pubErr)
+			} else {
+				sched.data.Posts[i].Status = StatusPublished
+				pubAt := now.Format(time.RFC3339)
+				sched.data.Posts[i].PublishedAt = &pubAt
+				sched.data.Posts[i].UpdatedAt = pubAt
+				sched.data.Posts[i].Error = nil
+				for _, platform := range p.Platforms {
+					accts.UpdateLastPostedAt(platform)
+				}
+				log.Printf("[AUTO] ✓ Published: %.60s", p.Content)
+			}
 			}
 			sched.save()
 			sched.mu.Unlock()
@@ -427,6 +459,94 @@ func (a *AccountManager) FindByPlatform(platform Platform) *ConnectedAccount {
 	return nil
 }
 
+// ─── Twitter OAuth 1.0a ──────────────────────────────────────────────────────
+
+var twitterOAuthConfig *oauth1.Config
+var requestTokenSecrets sync.Map
+var twitterAccessToken, twitterAccessSecret string
+
+func initTwitterOAuth(dataDir string) {
+	oauthDataDir = dataDir
+	ck := os.Getenv("xConsumerKey")
+	cs := os.Getenv("xSecretKey")
+	if ck == "" { ck = os.Getenv("TWITTER_CONSUMER_KEY") }
+	if cs == "" { cs = os.Getenv("TWITTER_CONSUMER_SECRET") }
+	if ck == "" || cs == "" {
+		log.Println("[OAUTH] X/Twitter: no consumer key/secret — set xConsumerKey and xSecretKey in .env")
+		return
+	}
+	cb := os.Getenv("TWITTER_CALLBACK_URL")
+	if cb == "" { cb = "http://localhost:8080/api/auth/twitter/callback" }
+	twitterOAuthConfig = &oauth1.Config{
+		ConsumerKey:    ck,
+		ConsumerSecret: cs,
+		CallbackURL:    cb,
+		Endpoint:       twitterOAuth.AuthorizeEndpoint,
+	}
+	loadTwitterAccessToken()
+	if twitterAccessToken != "" {
+		log.Println("[OAUTH] X/Twitter OAuth 1.0a ready (already connected)")
+	} else {
+		log.Println("[OAUTH] X/Twitter OAuth 1.0a ready (not connected yet)")
+	}
+}
+
+func getRequestToken() (oauthToken, oauthSecret string, err error) {
+	client := twitterOAuthConfig.Client(oauth1.NoContext, &oauth1.Token{})
+	resp, e := client.Post(twitterOAuthConfig.Endpoint.RequestTokenURL, "application/x-www-form-urlencoded", nil)
+	if e != nil { return "", "", e }
+	defer resp.Body.Close()
+	body, e := io.ReadAll(resp.Body)
+	if e != nil { return "", "", e }
+	vals, e := url.ParseQuery(string(body))
+	if e != nil { return "", "", e }
+	oauthToken = vals.Get("oauth_token")
+	oauthSecret = vals.Get("oauth_token_secret")
+	if oauthToken == "" || oauthSecret == "" {
+		return "", "", fmt.Errorf("failed to get request token: %s", string(body))
+	}
+	return oauthToken, oauthSecret, nil
+}
+
+func getAccessToken(requestToken, requestSecret, verifier string) (accessToken, accessSecret string, err error) {
+	tok := oauth1.NewToken(requestToken, requestSecret)
+	client := twitterOAuthConfig.Client(oauth1.NoContext, tok)
+	resp, e := client.PostForm(twitterOAuthConfig.Endpoint.AccessTokenURL, url.Values{"oauth_verifier": {verifier}})
+	if e != nil { return "", "", e }
+	defer resp.Body.Close()
+	body, e := io.ReadAll(resp.Body)
+	if e != nil { return "", "", e }
+	vals, e := url.ParseQuery(string(body))
+	if e != nil { return "", "", e }
+	accessToken = vals.Get("oauth_token")
+	accessSecret = vals.Get("oauth_token_secret")
+	if accessToken == "" || accessSecret == "" {
+		return "", "", fmt.Errorf("failed to get access token: %s", string(body))
+	}
+	return accessToken, accessSecret, nil
+}
+
+func twitterTokenFile(dataDir string) string { return dataDir + "/twitter-oauth.json" }
+
+var oauthDataDir string
+
+func loadTwitterAccessToken() {
+	if oauthDataDir == "" { return }
+	data, err := os.ReadFile(twitterTokenFile(oauthDataDir))
+	if err != nil { return }
+	var t struct { Token string `json:"token"`; Secret string `json:"secret"` }
+	if json.Unmarshal(data, &t) == nil && t.Token != "" {
+		twitterAccessToken, twitterAccessSecret = t.Token, t.Secret
+	}
+}
+
+func saveTwitterAccessToken(token, secret string) {
+	twitterAccessToken, twitterAccessSecret = token, secret
+	t := map[string]string{"token": token, "secret": secret}
+	data, _ := json.MarshalIndent(t, "", "  ")
+	os.WriteFile(twitterTokenFile(oauthDataDir), data, 0644)
+}
+
 // ─── Real API Publishing ─────────────────────────────────────────────────────
 
 func publishToPlatform(platform Platform, content string, acct *ConnectedAccount) error {
@@ -440,29 +560,24 @@ func publishToPlatform(platform Platform, content string, acct *ConnectedAccount
 }
 
 func publishToTwitter(content string, acct *ConnectedAccount) error {
-	if strings.HasPrefix(acct.AccessToken, "pre-configured") {
-		return fmt.Errorf("real X API token required — connect via Account Hub")
-	}
-	if strings.HasPrefix(acct.AccessToken, "AAAAAAAAAAAAAAAAAAAA") {
-		return fmt.Errorf("your Bearer Token is app-only and cannot post tweets — generate a user access token with tweet.write scope at developer.twitter.com")
+	if twitterAccessToken == "" || twitterAccessSecret == "" {
+		return fmt.Errorf("X not connected via OAuth — connect in Account Hub")
 	}
 
-	// Try OAuth 2.0 Bearer (user access token with tweet.write)
+	tok := oauth1.NewToken(twitterAccessToken, twitterAccessSecret)
+	client := twitterOAuthConfig.Client(oauth1.NoContext, tok)
+
 	body := map[string]string{"text": content}
 	var buf bytes.Buffer
 	json.NewEncoder(&buf).Encode(body)
-	req, err := http.NewRequest("POST", "https://api.twitter.com/2/tweets", &buf)
-	if err != nil { return err }
-	req.Header.Set("Authorization", "Bearer "+acct.AccessToken)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Post("https://api.twitter.com/2/tweets", "application/json", &buf)
 	if err != nil { return err }
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		raw, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("X API %d: %s", resp.StatusCode, string(raw))
 	}
-	log.Printf("[PUBLISHED] X as @%s ✓", acct.Username)
+	log.Printf("[PUBLISHED] X ✓")
 	return nil
 }
 
@@ -866,6 +981,10 @@ func handleCompetitor(w http.ResponseWriter, r *http.Request) {
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 func main() {
+	// Load .env from project root (supports cd backend && go run .)
+	godotenv.Load()
+	godotenv.Load("../.env")
+
 	initAI()
 	dataDir := os.Getenv("SCHEDULER_DATA_DIR")
 	if dataDir == "" {
@@ -874,6 +993,8 @@ func main() {
 		dataDir = cwd + "/data"
 	}
 	os.MkdirAll(dataDir, 0755)
+
+	initTwitterOAuth(dataDir)
 
 	sched := NewScheduler(dataDir)
 	accts := NewAccountManager(dataDir)
@@ -940,6 +1061,118 @@ func main() {
 	})
 	mux.HandleFunc("GET /api/accounts/status", func(w http.ResponseWriter, r *http.Request) { json.NewEncoder(w).Encode(accts.GetConnectedPlatforms()) })
 
+	// ─── Twitter OAuth 1.0a ────────────────────────────────────────────────────
+
+	mux.HandleFunc("GET /api/auth/twitter", func(w http.ResponseWriter, r *http.Request) {
+		if twitterAccessToken != "" {
+			json.NewEncoder(w).Encode(map[string]string{"status": "already_authenticated"})
+			return
+		}
+		if twitterOAuthConfig == nil {
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(ErrorResponse{"Twitter OAuth not configured — check xConsumerKey and xSecretKey in .env"})
+			return
+		}
+		reqToken, reqSecret, err := getRequestToken()
+		if err != nil {
+			w.WriteHeader(500)
+			json.NewEncoder(w).Encode(ErrorResponse{"Failed to initiate Twitter OAuth: " + err.Error()})
+			return
+		}
+		requestTokenSecrets.Store(reqToken, reqSecret)
+		authURL := twitterOAuthConfig.Endpoint.AuthorizeURL + "?oauth_token=" + url.QueryEscape(reqToken)
+		http.Redirect(w, r, authURL, http.StatusFound)
+	})
+
+	// JSON version that returns the auth URL (so frontend can store oauth_token before redirect)
+	mux.HandleFunc("GET /api/auth/twitter/init", func(w http.ResponseWriter, r *http.Request) {
+		if twitterAccessToken != "" {
+			json.NewEncoder(w).Encode(map[string]string{"status": "already_authenticated"})
+			return
+		}
+		if twitterOAuthConfig == nil {
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(ErrorResponse{"Twitter OAuth not configured — check xConsumerKey and xSecretKey in .env"})
+			return
+		}
+		reqToken, reqSecret, err := getRequestToken()
+		if err != nil {
+			w.WriteHeader(500)
+			json.NewEncoder(w).Encode(ErrorResponse{"Failed to initiate Twitter OAuth: " + err.Error()})
+			return
+		}
+		requestTokenSecrets.Store(reqToken, reqSecret)
+		authURL := twitterOAuthConfig.Endpoint.AuthorizeURL + "?oauth_token=" + url.QueryEscape(reqToken)
+		json.NewEncoder(w).Encode(map[string]string{"url": authURL, "oauth_token": reqToken})
+	})
+
+	mux.HandleFunc("GET /api/auth/twitter/callback", func(w http.ResponseWriter, r *http.Request) {
+		reqToken := r.URL.Query().Get("oauth_token")
+		verifier := r.URL.Query().Get("oauth_verifier")
+		denied := r.URL.Query().Get("denied")
+		if denied != "" {
+			requestTokenSecrets.Delete(denied)
+			http.Redirect(w, r, "http://localhost:3000/app/settings?twitter=denied", http.StatusFound)
+			return
+		}
+		if reqToken == "" || verifier == "" {
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(ErrorResponse{"Missing oauth_token or oauth_verifier"})
+			return
+		}
+		reqSecretVal, ok := requestTokenSecrets.Load(reqToken)
+		if !ok {
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(ErrorResponse{"Invalid oauth_token — start the OAuth flow again"})
+			return
+		}
+		reqSecret := reqSecretVal.(string)
+		requestTokenSecrets.Delete(reqToken)
+
+		accessToken, accessSecret, err := getAccessToken(reqToken, reqSecret, verifier)
+		if err != nil {
+			w.WriteHeader(500)
+			json.NewEncoder(w).Encode(ErrorResponse{"Failed to get access token: " + err.Error()})
+			return
+		}
+
+		saveTwitterAccessToken(accessToken, accessSecret)
+
+		accts.Connect(PlatformTwitter, "connected", "", "oauth", accessToken, accessSecret)
+
+		frontendURL := os.Getenv("FRONTEND_URL")
+		if frontendURL == "" { frontendURL = "http://localhost:3000" }
+		http.Redirect(w, r, frontendURL+"/app/settings?twitter=connected", http.StatusFound)
+	})
+
+	// Manual verifier entry (when callback URL isn't registered in Twitter Dev Portal)
+	mux.HandleFunc("POST /api/auth/twitter/verify", func(w http.ResponseWriter, r *http.Request) {
+		var req struct { Token string `json:"oauth_token"`; Verifier string `json:"oauth_verifier"` }
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid JSON"})
+			return
+		}
+		if req.Token == "" || req.Verifier == "" {
+			w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"oauth_token and oauth_verifier required"})
+			return
+		}
+		reqSecretVal, ok := requestTokenSecrets.Load(req.Token)
+		if !ok {
+			w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid oauth_token — start the OAuth flow again"})
+			return
+		}
+		reqSecret := reqSecretVal.(string)
+		requestTokenSecrets.Delete(req.Token)
+		accessToken, accessSecret, err := getAccessToken(req.Token, reqSecret, req.Verifier)
+		if err != nil {
+			w.WriteHeader(500); json.NewEncoder(w).Encode(ErrorResponse{"Failed: " + err.Error()})
+			return
+		}
+		saveTwitterAccessToken(accessToken, accessSecret)
+		accts.Connect(PlatformTwitter, "connected", "", "oauth", accessToken, accessSecret)
+		json.NewEncoder(w).Encode(map[string]string{"status": "connected"})
+	})
+
 	// ─── Browser Auth API ─────────────────────────────────────────────────────
 	var authInProgress sync.Map
 
@@ -951,6 +1184,11 @@ func main() {
 		if !validPlatforms[platform] {
 			w.WriteHeader(400)
 			json.NewEncoder(w).Encode(ErrorResponse{"Invalid platform"})
+			return
+		}
+		if platform == "x" || platform == "twitter" {
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(ErrorResponse{"X/Twitter uses OAuth 1.0a redirect — go to /api/auth/twitter instead"})
 			return
 		}
 		cookieDir := mappedPlatform[platform]
@@ -983,6 +1221,14 @@ func main() {
 	mux.HandleFunc("GET /api/auth/status", func(w http.ResponseWriter, r *http.Request) {
 		status := map[string]string{}
 		for p, cookieDir := range mappedPlatform {
+			if p == "twitter" || p == "x" {
+				if twitterAccessToken != "" {
+					status[p] = "authenticated"
+				} else {
+					status[p] = "not_authenticated"
+				}
+				continue
+			}
 			cf := fmt.Sprintf("%s/cookies/%s.json", dataDir, cookieDir)
 			if _, err := os.Stat(cf); err == nil {
 				status[p] = "authenticated"
@@ -1026,10 +1272,10 @@ func main() {
 	fmt.Printf("\n  ■ Port:    %s", port)
 	fmt.Printf("\n  ■ Accounts: X, LinkedIn, Facebook, Instagram, Threads")
 	fmt.Printf("\n")
-	fmt.Printf("\n  ── BROWSER AUTH ─────────────────────────")
+	fmt.Printf("\n  ── AUTH ──────────────────────────────────")
+	fmt.Printf("\n    X/Twitter: OAuth 1.0a redirect (no popup)")
+	fmt.Printf("\n    Others: Browser cookie session (popup)")
 	fmt.Printf("\n    Open http://localhost:%s/app/settings", port)
-	fmt.Printf("\n    Click 'Connect' on any platform → browser opens → you login")
-	fmt.Printf("\n    No passwords stored. Auto-publish uses saved session.")
 	fmt.Printf("\n  ────────────────────────────────────────")
 	fmt.Printf("\n\n")
 	log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))

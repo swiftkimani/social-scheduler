@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 export default function CompetitorIntel() {
   const [data, setData] = useState(null)
   useEffect(() => {
-    fetch("http://localhost:8080/api/nexus/competitor").then(r=>r.json()).then(setData).catch(()=>{})
+    fetch("/api/nexus/competitor").then(r=>r.json()).then(setData).catch(()=>{})
   }, [])
 
   return (

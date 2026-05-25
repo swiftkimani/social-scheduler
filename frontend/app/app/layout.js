@@ -24,7 +24,7 @@ export default function AppLayout({ children }) {
   const [connected, setConnected] = useState(0)
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/accounts")
+    fetch("/api/accounts")
       .then(r => r.json())
       .then(accts => {
         if (accts.length > 0) {

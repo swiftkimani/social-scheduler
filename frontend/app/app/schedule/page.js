@@ -129,7 +129,7 @@ export default function ContentStudio() {
 
   const refreshAccounts = useCallback(async () => {
     try {
-      const r = await fetch("http://localhost:8080/api/accounts")
+      const r = await fetch("/api/accounts")
       if (r.ok) {
         const accts = await r.json()
         const map = {}
@@ -142,14 +142,14 @@ export default function ContentStudio() {
   useEffect(() => {
     refreshPosts()
     refreshAccounts()
-    fetch("http://localhost:8080/api/nexus/predict").then(r=>r.json()).then(d => setBestTimes(d.bestTimes || [])).catch(()=>{})
+    fetch("/api/nexus/predict").then(r=>r.json()).then(d => setBestTimes(d.bestTimes || [])).catch(()=>{})
   }, [refreshPosts, refreshAccounts])
 
   async function generateAI() {
     if (!topic.trim()) return
     setAiLoading(true)
     try {
-      const r = await fetch("http://localhost:8080/api/nexus/generate", {
+      const r = await fetch("/api/nexus/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: topic.trim(), tone, platform: Object.entries(platforms).filter(([,v])=>v).map(([k])=>k)[0] || "twitter" }),
@@ -167,7 +167,7 @@ export default function ContentStudio() {
     if (!text || text.length < 10) { addToast("Write at least 10 characters to summarize", "error"); return }
     setSummaryLoading(true)
     try {
-      const r = await fetch("http://localhost:8080/api/nexus/summarize", {
+      const r = await fetch("/api/nexus/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: text.slice(0, 100), context: text.slice(0, 500) }),
@@ -195,7 +195,7 @@ export default function ContentStudio() {
     if (!content || selected.length === 0) { addToast("Content + platform required", "error"); return }
     setSubmitting(true)
     try {
-      const r = await fetch("http://localhost:8080/api/schedule", {
+      const r = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content, platforms: selected, scheduledAt: formData.get("scheduledAt") || null }),
@@ -214,11 +214,11 @@ export default function ContentStudio() {
   }
 
   async function handlePublish(id) {
-    const r = await fetch(`http://localhost:8080/api/posts/${id}/publish`, { method: "POST" })
+    const r = await fetch(`/api/posts/${id}/publish`, { method: "POST" })
     if (r.ok) { addToast("Published!", "success"); await refreshPosts() } else addToast("Failed", "error")
   }
   async function handleCancel(id) {
-    const r = await fetch(`http://localhost:8080/api/posts/${id}/cancel`, { method: "POST" })
+    const r = await fetch(`/api/posts/${id}/cancel`, { method: "POST" })
     if (r.ok) { addToast("Cancelled", "success"); await refreshPosts() } else addToast("Failed", "error")
   }
 

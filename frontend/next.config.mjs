@@ -6,11 +6,14 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig = {
-  // Set turbopack root to the monorepo root directory
   turbopack: {
     root: path.resolve(__dirname, '..'),
   },
-  // Add additional Next.js config options here if needed
+  async rewrites() {
+    return [
+      { source: '/api/:path*', destination: 'http://localhost:8080/api/:path*' },
+    ]
+  },
 };
 
 export default nextConfig;

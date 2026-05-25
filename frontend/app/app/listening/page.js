@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 export default function SocialListening() {
   const [data, setData] = useState(null)
   useEffect(() => {
-    fetch("http://localhost:8080/api/nexus/listening").then(r=>r.json()).then(setData).catch(()=>{})
+    fetch("/api/nexus/listening").then(r=>r.json()).then(setData).catch(()=>{})
   }, [])
 
   return (
