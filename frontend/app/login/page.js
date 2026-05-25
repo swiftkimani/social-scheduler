@@ -1,7 +1,7 @@
 import "../globals.css"
 
 export const metadata = {
-  title: "Log In — Social Scheduler",
+  title: "Log In — NEXUS AI",
 }
 
 export default function LoginPage() {

@@ -1,14 +1,13 @@
-import "./globals.css"
-import Navbar from "./components/Navbar"
+import "./globals.css";
+import Navbar from "./components/Navbar";
+import DashboardNavbar from "./components/DashboardNavbar";
+import NavbarSwitcher from "./components/NavbarSwitcher";
 
 export const metadata = {
-  title: "Social Scheduler — AI-Powered Post Scheduling",
-  description: "Schedule and manage social media posts across Twitter and LinkedIn with AI-powered content generation and pattern insights.",
-  openGraph: {
-    title: "Social Scheduler",
-    description: "AI-powered social media scheduling agent",
-  },
-}
+  title: "NEXUS AI — Social Intelligence Platform",
+  description: "Your AI-Powered Social Media Command Center. Schedule, create, listen, and optimize across every channel.",
+  openGraph: { title: "NEXUS AI", description: "AI-Powered Social Media Command Center" },
+};
 
 export default function RootLayout({ children }) {
   return (
@@ -19,9 +18,9 @@ export default function RootLayout({ children }) {
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body>
-        <Navbar />
+        <NavbarSwitcher />
         <main>{children}</main>
       </body>
     </html>
-  )
+  );
 }

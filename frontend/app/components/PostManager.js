@@ -168,8 +168,8 @@ export default function PostManager({ initialPosts }) {
 
       <div className="container">
         <header className="header">
-          <span className="header-icon">📡</span>
-          <h1>Social Scheduler</h1>
+          <span className="header-icon">◆</span>
+          <h1>NEXUS AI</h1>
           <p>Schedule and manage posts across Twitter &amp; LinkedIn</p>
         </header>
 
