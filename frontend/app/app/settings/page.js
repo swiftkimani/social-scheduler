@@ -23,6 +23,26 @@ const PLATFORMS = [
     gradient:"linear-gradient(135deg,#333,#000)",
     bgGradient:"linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))",
     description:"Post text updates and join conversations.", charLimit:500 },
+  { id:"tiktok", name:"TikTok", icon:"♪", color:"#ff0050",
+    gradient:"linear-gradient(135deg,#ff0050,#00f2ea)",
+    bgGradient:"linear-gradient(135deg,rgba(255,0,80,0.08),rgba(0,242,234,0.04))",
+    description:"Share short-form video content.", charLimit:2200 },
+  { id:"youtube", name:"YouTube", icon:"▶", color:"#ff0000",
+    gradient:"linear-gradient(135deg,#ff0000,#cc0000)",
+    bgGradient:"linear-gradient(135deg,rgba(255,0,0,0.08),rgba(255,0,0,0.02))",
+    description:"Publish and manage video content.", charLimit:5000 },
+  { id:"pinterest", name:"Pinterest", icon:"P", color:"#bd081c",
+    gradient:"linear-gradient(135deg,#bd081c,#820614)",
+    bgGradient:"linear-gradient(135deg,rgba(189,8,28,0.08),rgba(189,8,28,0.02))",
+    description:"Pin your visual ideas and inspirations.", charLimit:500 },
+  { id:"discord", name:"Discord", icon:"(·)", color:"#5865f2",
+    gradient:"linear-gradient(135deg,#5865f2,#404eed)",
+    bgGradient:"linear-gradient(135deg,rgba(88,101,242,0.08),rgba(88,101,242,0.02))",
+    description:"Automate your community updates.", charLimit:2000 },
+  { id:"slack", name:"Slack", icon:"#", color:"#4a154b",
+    gradient:"linear-gradient(135deg,#4a154b,#2e0d30)",
+    bgGradient:"linear-gradient(135deg,rgba(74,21,75,0.08),rgba(74,21,75,0.02))",
+    description:"Push notifications to your team.", charLimit:4000 },
 ]
 
 function AccountCard({ platform, authStatus, onStartAuth }) {
@@ -31,90 +51,88 @@ function AccountCard({ platform, authStatus, onStartAuth }) {
 
   return (
     <div className="glass card" style={{
+      padding: "1rem",
       background: platform.bgGradient,
-      border: isConnected ? "1px solid rgba(16,185,129,0.15)" : "1px solid var(--border)",
+      border: isConnected ? "1px solid rgba(16,185,129,0.2)" : "1px solid var(--border)",
       position:"relative", overflow:"hidden", transition:"all 0.3s",
+      display:"flex", flexDirection:"column", justifyContent:"space-between",
+      minHeight: "160px"
     }}>
       {isConnected && <div style={{
-        position:"absolute", top:0, left:0, right:0, height:3,
-        background:"linear-gradient(90deg,#10b981,#34d399)",
+        position:"absolute", top:0, left:0, bottom:0, width:3,
+        background:platform.gradient,
       }} />}
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"1.25rem"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"1rem"}}>
+      
+      <div>
+        <div style={{display:"flex", alignItems:"center", gap:"0.75rem", marginBottom:"0.75rem"}}>
           <div style={{
-            width:52, height:52, borderRadius:14,
+            width:36, height:36, borderRadius:10,
             background:platform.gradient,
             display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:platform.id==="twitter"?"1.4rem":"0.9rem",
-            fontWeight:800,color:"#fff",
-            boxShadow:`0 0 24px ${platform.color}22`,
+            fontSize:platform.id==="twitter"?"1rem":platform.id==="instagram"?"1.1rem":"0.85rem",
+            fontWeight:900,color:"#fff",
+            boxShadow:`0 0 15px ${platform.color}33`,
+            flexShrink: 0
           }}>{platform.icon}</div>
-          <div>
-            <h3 style={{fontSize:"1rem",fontWeight:700}}>{platform.name}</h3>
-            <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginTop:"0.25rem"}}>
+          <div style={{minWidth:0}}>
+            <h3 style={{fontSize:"0.85rem",fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{platform.name}</h3>
+            <div style={{display:"flex",alignItems:"center",gap:"0.375rem",marginTop:"0.125rem"}}>
               <span style={{
-                width:8,height:8,borderRadius:"50%",display:"inline-block",
+                width:6,height:6,borderRadius:"50%",display:"inline-block",
                 background:isConnected?"#10b981":isConnecting?"#fbbf24":"#64748b",
-                boxShadow:isConnected?"0 0 8px rgba(16,185,129,0.5)":"none",
               }} />
               <span style={{
-                fontSize:"0.8rem",fontWeight:600,
+                fontSize:"0.7rem",fontWeight:600,
                 color:isConnected?"#6ee7b7":isConnecting?"#fbbf24":"var(--text-muted)",
               }}>
-                {isConnected ? "Connected" : isConnecting ? "Connecting..." : "Not Connected"}
+                {isConnected ? "Live" : isConnecting ? "Wait..." : "Offline"}
               </span>
             </div>
           </div>
         </div>
+        <p style={{fontSize:"0.7rem", color:"var(--text-muted)", lineHeight:1.4, marginBottom:"1rem"}}>
+          {platform.description}
+        </p>
       </div>
 
-      {!isConnected && !isConnecting && (
-        <button
-          className="btn btn-primary"
-          style={{width:"100%"}}
-          onClick={() => onStartAuth(platform.id)}
-        >
-          + Connect {platform.name}
-        </button>
-      )}
+      <div style={{marginTop:"auto"}}>
+        {!isConnected && !isConnecting && (
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{width:"100%", fontSize:"0.7rem", padding:"0.4rem"}}
+            onClick={() => onStartAuth(platform.id)}
+          >
+            Connect
+          </button>
+        )}
 
-      {isConnecting && (
-        <div style={{
-          padding:"1rem", borderRadius:"var(--radius-sm)",
-          background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.15)",
-          textAlign:"center",
-        }}>
-          <div style={{fontSize:"0.85rem",color:"#fbbf24",fontWeight:600,marginBottom:"0.5rem"}}>
-            ⏳ Check your browser — a login window opened
+        {isConnecting && (
+          <div style={{
+            padding:"0.5rem", borderRadius:8,
+            background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.15)",
+            textAlign:"center", display:"flex", alignItems:"center", gap:"0.5rem", justifyContent:"center"
+          }}>
+            <span className="spinner" style={{width:10, height:10}} />
+            <span style={{fontSize:"0.65rem",color:"#fbbf24",fontWeight:600}}>Auth in browser</span>
           </div>
-          <div style={{fontSize:"0.75rem",color:"var(--text-muted)",lineHeight:1.5}}>
-            Complete the login in the browser window.<br />
-            This page will update automatically when connected.
-          </div>
-          <div style={{marginTop:"0.75rem"}}>
-            <span className="spinner" style={{display:"inline-block"}} />
-          </div>
-        </div>
-      )}
+        )}
 
-      {isConnected && (
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.75rem"}}>
-          <div style={{
-            padding:"0.75rem",borderRadius:"var(--radius-sm)",
-            background:"rgba(6,8,15,0.3)",textAlign:"center",
-          }}>
-            <div style={{fontSize:"0.65rem",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:"0.25rem"}}>Status</div>
-            <div style={{fontSize:"0.9rem",fontWeight:700,color:"#6ee7b7"}}>Live</div>
+        {isConnected && (
+          <div style={{display:"flex", gap:"0.5rem"}}>
+             <div style={{
+              flex:1, padding:"0.375rem",borderRadius:6,
+              background:"rgba(6,8,15,0.4)",textAlign:"center",
+              border: "1px solid rgba(148,163,184,0.04)"
+            }}>
+              <div style={{fontSize:"0.55rem",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.04em"}}>Limit</div>
+              <div style={{fontSize:"0.75rem",fontWeight:700,color:"#67e8f9"}}>{platform.charLimit}</div>
+            </div>
+            <button className="btn btn-ghost btn-sm" style={{padding:"0 0.5rem", minWidth:32, color:"var(--red)"}} onClick={() => onStartAuth(platform.id)}>
+              ✕
+            </button>
           </div>
-          <div style={{
-            padding:"0.75rem",borderRadius:"var(--radius-sm)",
-            background:"rgba(6,8,15,0.3)",textAlign:"center",
-          }}>
-            <div style={{fontSize:"0.65rem",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:"0.25rem"}}>Char Limit</div>
-            <div style={{fontSize:"1rem",fontWeight:700,color:"#67e8f9"}}>{platform.charLimit}</div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -127,9 +145,9 @@ export default function SettingsPage() {
   const [twitterAuthUrl, setTwitterAuthUrl] = useState("")
   const [iframeError, setIframeError] = useState(false)
   const [verifyCode, setVerifyCode] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
   const iframeRef = useRef(null)
 
-  // Detect iframe blocking (X-Frame-Options) — fall back to verifier paste flow
   useEffect(() => {
     if (!twitterAuthUrl || iframeError) return
     const timer = setTimeout(() => {
@@ -161,18 +179,16 @@ export default function SettingsPage() {
 
   useEffect(() => {
     refreshStatus()
-    const interval = setInterval(refreshStatus, 2000)
+    const interval = setInterval(refreshStatus, 3000)
     return () => clearInterval(interval)
   }, [refreshStatus])
 
-  // Handle OAuth callback query params (for when this page loads in iframe after auth)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get("twitter") === "connected") {
       addToast("X/Twitter connected successfully!", "success")
       window.history.replaceState({}, "", window.location.pathname)
       refreshStatus()
-      // Tell parent window (if in iframe) to close the modal
       if (window.parent !== window) {
         window.parent.postMessage({ type: "twitter-auth", status: "connected" }, "*")
       }
@@ -185,7 +201,6 @@ export default function SettingsPage() {
     }
   }, [])
 
-  // Listen for postMessage from iframe (child settings page after auth completes)
   useEffect(() => {
     function handler(e) {
       if (e.data?.type === "twitter-auth") {
@@ -270,10 +285,14 @@ export default function SettingsPage() {
     }
   }
 
+  const filteredPlatforms = PLATFORMS.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   const connectedCount = Object.values(authStatuses).filter(s => s === "authenticated").length
 
   return (
-    <div>
+    <div style={{maxWidth: 1000, margin: "0 auto"}}>
       <div className="toast-container">
         {toasts.map(t => (
           <div key={t.id} className={`toast toast-${t.type}`} onClick={() => setToasts(p => p.filter(x => x.id !== t.id))}>
@@ -281,34 +300,61 @@ export default function SettingsPage() {
           </div>
         ))}
       </div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"2rem"}}>
+      
+      <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:"2rem", gap:"1.5rem", flexWrap:"wrap"}}>
         <div>
-          <h1 style={{fontSize:"1.35rem",fontWeight:800,letterSpacing:"-0.02em"}}>Account Hub</h1>
-          <p style={{color:"var(--text-secondary)",fontSize:"0.85rem",marginTop:"0.125rem"}}>
-            Connect your accounts via browser — no API tokens needed
+          <h1 style={{fontSize:"1.75rem",fontWeight:800,letterSpacing:"-0.03em"}}>Account Hub</h1>
+          <p style={{color:"var(--text-secondary)",fontSize:"0.9rem",marginTop:"0.25rem"}}>
+            Connect and manage your social workspace
           </p>
         </div>
-        <div style={{
-          display:"flex",alignItems:"center",gap:"0.5rem",
-          padding:"0.5rem 1rem",borderRadius:"var(--radius-sm)",
-          background:"rgba(6,8,15,0.3)",border:"1px solid var(--border)",
-        }}>
-          <span style={{
-            width:8,height:8,borderRadius:"50%",
-            background:connectedCount>0?"#10b981":"#64748b",
-            boxShadow:connectedCount>0?"0 0 8px rgba(16,185,129,0.5)":"none",
-          }} />
-          <span style={{fontSize:"0.8rem",fontWeight:600,color:"var(--text-secondary)"}}>
-            {connectedCount} / {PLATFORMS.length} connected
-          </span>
+
+        <div style={{display:"flex", gap:"1rem", alignItems:"center", flex:1, minWidth:300, justifyContent:"flex-end"}}>
+           <div style={{position:"relative", flex:1, maxWidth:400}}>
+            <input 
+              type="text" 
+              placeholder="Search platforms... (⌘K)" 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                width:"100%", padding:"0.625rem 1rem", paddingLeft:"2.5rem", borderRadius:10,
+                background:"rgba(6,8,15,0.4)", border:"1px solid var(--border)",
+                color:"var(--text)", fontSize:"0.85rem", outline:"none"
+              }}
+            />
+            <span style={{position:"absolute", left:"1rem", top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", fontSize:"0.9rem"}}>🔍</span>
+          </div>
+
+          <div style={{
+            display:"flex",alignItems:"center",gap:"0.75rem",
+            padding:"0.625rem 1.25rem",borderRadius:10,
+            background:"rgba(16,185,129,0.06)",border:"1px solid rgba(16,185,129,0.1)",
+          }}>
+            <span style={{
+              width:8,height:8,borderRadius:"50%",
+              background:connectedCount>0?"#10b981":"#64748b",
+              boxShadow:connectedCount>0?"0 0 10px rgba(16,185,129,0.4)":"none",
+              animation: connectedCount > 0 ? "pulse 2s infinite" : "none"
+            }} />
+            <span style={{fontSize:"0.85rem",fontWeight:700,color:"#6ee7b7"}}>
+              {connectedCount} / {PLATFORMS.length} Connected
+            </span>
+          </div>
         </div>
       </div>
 
       {loading ? (
-        <div style={{textAlign:"center",padding:"3rem",color:"var(--text-muted)"}}>Loading...</div>
+        <div style={{textAlign:"center",padding:"5rem"}}>
+          <span className="spinner" style={{width:32, height:32}} />
+          <p style={{marginTop:"1rem", color:"var(--text-muted)"}}>Syncing account status...</p>
+        </div>
       ) : (
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1.5rem"}}>
-          {PLATFORMS.map(p => (
+        <div style={{
+          display:"grid",
+          gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",
+          gap:"1.25rem"
+        }}>
+          {filteredPlatforms.map(p => (
             <AccountCard
               key={p.id}
               platform={p}
@@ -316,42 +362,42 @@ export default function SettingsPage() {
               onStartAuth={handleStartAuth}
             />
           ))}
+          
+          {filteredPlatforms.length === 0 && (
+             <div style={{gridColumn:"1/-1", textAlign:"center", padding:"4rem", color:"var(--text-muted)"}}>
+              <p>No platforms matching "{searchQuery}"</p>
+              <button className="btn btn-ghost btn-sm" style={{marginTop:"1rem"}} onClick={() => setSearchQuery("")}>Clear Search</button>
+            </div>
+          )}
         </div>
       )}
 
-      {connectedCount === 0 && !loading && (
-        <div className="glass card" style={{
-          marginTop:"1.5rem",textAlign:"center",padding:"2rem",
-          border:"1px dashed rgba(99,102,241,0.15)",
-        }}>
-          <div style={{fontSize:"2rem",marginBottom:"0.75rem"}}>🔗</div>
-          <h3 style={{fontSize:"1rem",fontWeight:700,marginBottom:"0.5rem"}}>No accounts connected yet</h3>
-          <p style={{fontSize:"0.85rem",color:"var(--text-muted)",maxWidth:480,margin:"0 auto",lineHeight:1.6}}>
-            Click "Connect" on any platform above to get started.
+      <div className="glass card" style={{
+        marginTop:"2.5rem", padding:"1.5rem",
+        background:"linear-gradient(135deg, rgba(99,102,241,0.04), rgba(236,72,153,0.02))",
+        border:"1px solid rgba(99,102,241,0.08)",
+        display:"flex", gap:"1.5rem", alignItems:"center"
+      }}>
+        <div style={{
+          width:54, height:54, borderRadius:16, background:"rgba(99,102,241,0.1)",
+          display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.5rem"
+        }}>🔒</div>
+        <div>
+          <h3 style={{fontSize:"0.95rem",fontWeight:800,marginBottom:"0.375rem"}}>Secure Connection Protocol</h3>
+          <p style={{fontSize:"0.85rem",color:"var(--text-secondary)",lineHeight:1.6, maxWidth:700}}>
+            NEXUS uses platform-native authentication. X/Twitter utilizes OAuth 1.0a, while other platforms leverage localized session syncing. 
+            <strong> We never store your passwords.</strong> All session data is encrypted and kept strictly within your workspace.
           </p>
         </div>
-      )}
-
-      <div style={{
-        marginTop:"2rem",padding:"1.25rem",borderRadius:"var(--radius)",
-        background:"rgba(99,102,241,0.03)",border:"1px solid rgba(99,102,241,0.08)",
-      }}>
-        <h3 style={{fontSize:"0.85rem",fontWeight:700,marginBottom:"0.5rem",display:"flex",alignItems:"center",gap:"0.5rem"}}>
-          <span>🔒</span> How It Works
-        </h3>
-        <p style={{fontSize:"0.8rem",color:"var(--text-muted)",lineHeight:1.6}}>
-          X/Twitter uses OAuth 1.0a — authorize in the modal. Other platforms use session cookies saved locally — no passwords stored.
-        </p>
       </div>
 
-      {/* ─── Right-to-left Slide-in Modal ──────────────────────── */}
       {twitterModalOpen && (
         <div style={{
           position:"fixed",inset:0,zIndex:9999,display:"flex",
           animation:"fadeIn 0.2s ease",
         }}>
           <div style={{
-            position:"absolute",inset:0,background:"rgba(0,0,0,0.6)",
+            position:"absolute",inset:0,background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)"
           }} onClick={() => {
             setTwitterModalOpen(false)
             setTwitterAuthUrl("")
@@ -363,6 +409,7 @@ export default function SettingsPage() {
             boxShadow:"-8px 0 40px rgba(0,0,0,0.3)",
             animation:"slideInRight 0.3s ease",
             overflow:"hidden",
+            borderLeft: "1px solid var(--border)"
           }}>
             <style>{`
               @keyframes slideInRight { from { transform: translateX(100%) } to { transform: translateX(0) } }
@@ -371,16 +418,17 @@ export default function SettingsPage() {
             `}</style>
             <div style={{
               display:"flex",alignItems:"center",justifyContent:"space-between",
-              padding:"1rem 1.25rem",borderBottom:"1px solid var(--border)",
+              padding:"1.25rem 1.5rem",borderBottom:"1px solid var(--border)",
+              background: "rgba(6,8,15,0.4)"
             }}>
               <div>
-                <div style={{fontSize:"0.95rem",fontWeight:700}}>Connect X / Twitter</div>
-                <div style={{fontSize:"0.75rem",color:"var(--text-muted)",marginTop:"0.125rem"}}>
-                  {iframeError ? "Paste the verifier code" : "Authorize in the embedded window"}
+                <div style={{fontSize:"1rem",fontWeight:800}}>Connect X / Twitter</div>
+                <div style={{fontSize:"0.75rem",color:"var(--text-muted)",marginTop:"0.25rem"}}>
+                  {iframeError ? "Paste the verifier code" : "Authorize in the secure window"}
                 </div>
               </div>
               <button onClick={() => { setTwitterModalOpen(false); setTwitterAuthUrl(""); setIframeError(false) }}
-                style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:"1.4rem",cursor:"pointer",padding:"0.25rem",lineHeight:1}}>
+                style={{background:"rgba(148,163,184,0.06)",border:"none",color:"var(--text-muted)",width:32, height:32, borderRadius:8, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center"}}>
                 ×
               </button>
             </div>
@@ -402,23 +450,28 @@ export default function SettingsPage() {
                 />
               )}
               {(iframeError || !twitterAuthUrl) && (
-                <div style={{padding:"1.25rem",display:"flex",flexDirection:"column",gap:"1rem"}}>
-                  <div style={{fontSize:"0.82rem",color:"var(--text-muted)",lineHeight:1.5}}>
-                    Twitter blocks embedded windows. Open Twitter in your own tab, authorize, then paste the code here.
+                <div style={{padding:"2rem",display:"flex",flexDirection:"column",gap:"1.5rem"}}>
+                  <div style={{padding:"1.25rem", borderRadius:12, background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.15)"}}>
+                    <div style={{fontSize:"0.85rem",color:"#fbbf24",fontWeight:700, marginBottom:"0.5rem"}}>Action Required</div>
+                    <div style={{fontSize:"0.8rem",color:"var(--text-muted)",lineHeight:1.6}}>
+                      Twitter blocks embedded windows. Open Twitter in a new tab, authorize NEXUS, then copy the 7-digit code provided.
+                    </div>
                   </div>
+                  
                   <a href={twitterAuthUrl} target="_blank" rel="noopener noreferrer"
-                    className="btn btn-primary"
+                    className="btn btn-primary btn-lg"
                     style={{textAlign:"center",textDecoration:"none"}}>
                     Open Twitter to Authorize ↗
                   </a>
-                  <div style={{borderTop:"1px solid var(--border)",paddingTop:"1rem"}}>
-                    <div style={{fontSize:"0.8rem",fontWeight:600,marginBottom:"0.5rem"}}>Paste verifier code from Twitter:</div>
+                  
+                  <div style={{marginTop:"1rem"}}>
+                    <label style={{fontSize:"0.75rem",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase", letterSpacing:"0.05em", display:"block", marginBottom:"0.5rem"}}>Verifier Code</label>
                     <input type="text" value={verifyCode}
                       onChange={e => setVerifyCode(e.target.value)}
                       placeholder="e.g. 4945332"
-                      style={{width:"100%",padding:"0.6rem 0.75rem",borderRadius:"6px",border:"1px solid var(--border)",background:"rgba(6,8,15,0.4)",color:"#fff",fontSize:"0.9rem",marginBottom:"0.5rem",outline:"none",boxSizing:"border-box"}}
+                      style={{width:"100%",padding:"0.875rem 1rem",borderRadius:"10px",border:"1px solid var(--border)",background:"rgba(6,8,15,0.4)",color:"#fff",fontSize:"1rem",marginBottom:"1rem",outline:"none",boxSizing:"border-box"}}
                     />
-                    <button className="btn btn-primary" style={{width:"100%"}} onClick={handleVerifyTwitter}>
+                    <button className="btn btn-primary" style={{width:"100%", padding:"0.875rem"}} onClick={handleVerifyTwitter}>
                       ✓ Verify & Connect
                     </button>
                   </div>

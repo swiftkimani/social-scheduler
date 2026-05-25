@@ -456,44 +456,42 @@ export default function ContentStudio() {
         {/* Right Column: Preview & Insights */}
         <div style={{display:"flex", flexDirection:"column", gap:"1.5rem"}}>
           
-          <LivePreview content={content} platforms={platforms} />
-
-          <div className="glass card">
-            <h3 style={{fontSize:"0.9rem",fontWeight:700,marginBottom:"1rem",display:"flex",alignItems:"center",gap:"0.5rem"}}>
-              <span>🤖</span> AI Insights
-            </h3>
-            <div style={{display:"flex", flexDirection:"column", gap:"1rem"}}>
-              <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(6,182,212,0.04)", border:"1px solid rgba(6,182,212,0.1)"}}>
-                <div style={{fontSize:"0.7rem", fontWeight:700, color:"#67e8f9", textTransform:"uppercase", marginBottom:"0.375rem"}}>Best Posting Windows</div>
-                <div style={{fontSize:"0.8rem", color:"var(--text-secondary)", lineHeight:1.5}}>
-                  {bestTimes.length > 0 ? bestTimes.join(" · ") : "Analyzing your audience..."}
-                </div>
-              </div>
-              
-              <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(16,185,129,0.04)", border:"1px solid rgba(16,185,129,0.1)"}}>
-                <div style={{fontSize:"0.7rem", fontWeight:700, color:"#6ee7b7", textTransform:"uppercase", marginBottom:"0.375rem"}}>Account Connectivity</div>
-                <div style={{display:"flex", flexDirection:"column", gap:"0.375rem"}}>
-                  {[
-                    ["twitter", "X / Twitter"], ["linkedin", "LinkedIn"],
-                    ["facebook", "Facebook"], ["instagram", "Instagram"],
-                    ["threads", "Threads"],
-                  ].map(([p, label]) => (
-                    <div key={p} style={{display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.75rem", color:"var(--text-secondary)"}}>
-                      <span style={{width:5, height:5, borderRadius:"50%", background:connectedPlatforms[p]?"#10b981":"#5a6380"}} />
-                      {label}: {connectedPlatforms[p] ? "Connected" : "Not Linked"}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(236,72,153,0.04)", border:"1px solid rgba(236,72,153,0.1)"}}>
-                <div style={{fontSize:"0.7rem", fontWeight:700, color:"#f9a8d4", textTransform:"uppercase", marginBottom:"0.375rem"}}>Studio Tip</div>
-                <p style={{fontSize:"0.8rem", color:"var(--text-secondary)", lineHeight:1.5}}>
-                  Posts with conversational tones perform 40% better on LinkedIn. Try switching the AI tone to 'Casual' for better results.
-                </p>
-              </div>
-            </div>
+          {/* AI Insights moved above LivePreview */}
+<div className="glass card">
+  <h3 style={{fontSize:"0.9rem",fontWeight:700,marginBottom:"1rem",display:"flex",alignItems:"center",gap:"0.5rem"}}>
+    <span>🤖</span> AI Insights
+  </h3>
+  <div style={{display:"flex", flexDirection:"column", gap:"1rem"}}>
+    <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(6,182,212,0.04)", border:"1px solid rgba(6,182,212,0.1)"}}>
+      <div style={{fontSize:"0.7rem", fontWeight:700, color:"#67e8f9", textTransform:"uppercase", marginBottom:"0.375rem"}}>Best Posting Windows</div>
+      <div style={{fontSize:"0.8rem", color:"var(--text-secondary)", lineHeight:1.5}}>
+        {bestTimes.length > 0 ? bestTimes.join(" · ") : "Analyzing your audience..."}
+      </div>
+    </div>
+    <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(16,185,129,0.04)", border:"1px solid rgba(16,185,129,0.1)"}}>
+      <div style={{fontSize:"0.7rem", fontWeight:700, color:"#6ee7b7", textTransform:"uppercase", marginBottom:"0.375rem"}}>Account Connectivity</div>
+      <div style={{display:"flex", flexDirection:"column", gap:"0.375rem"}}>
+        {[
+          ["twitter", "X / Twitter"], ["linkedin", "LinkedIn"],
+          ["facebook", "Facebook"], ["instagram", "Instagram"],
+          ["threads", "Threads"]
+        ].map(([p, label]) => (
+          <div key={p} style={{display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.75rem", color:"var(--text-secondary)"}}>
+            <span style={{width:5, height:5, borderRadius:"50%", background:connectedPlatforms[p]?"#10b981":"#5a6380"}} />
+            {label}: {connectedPlatforms[p] ? "Connected" : "Not Linked"}
           </div>
+        ))}
+      </div>
+    </div>
+    <div style={{padding:"0.875rem", borderRadius:10, background:"rgba(236,72,153,0.04)", border:"1px solid rgba(236,72,153,0.1)"}}>
+      <div style={{fontSize:"0.7rem", fontWeight:700, color:"#f9a8d4", textTransform:"uppercase", marginBottom:"0.375rem"}}>Studio Tip</div>
+      <p style={{fontSize:"0.8rem", color:"var(--text-secondary)", lineHeight:1.5}}>
+        Posts with conversational tones perform 40% better on LinkedIn. Try switching the AI tone to 'Casual' for better results.
+      </p>
+    </div>
+  </div>
+</div>
+<LivePreview content={content} platforms={platforms} />
         </div>
       </div>
     </div>

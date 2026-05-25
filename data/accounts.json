@@ -2,11 +2,12 @@
   "accounts": [
     {
       "platform": "twitter",
-      "username": "swiftkimani",
+      "username": "connected",
       "avatar": "",
-      "accessToken": "pre-configured",
-      "connectedAt": "2026-05-25T11:34:49Z",
-      "lastPostedAt": "2026-05-25T11:38:28Z",
+      "accessToken": "oauth",
+      "apiKey": "1060469680605937664-bOxZpDStajB71e5KkUGBMGbG8Ae5eW",
+      "apiSecret": "o9nznMTMI1EyyJcGEXp1GtYjCgfWJXJMC1uvB2XBy8CKs",
+      "connectedAt": "2026-05-25T11:48:31Z",
       "status": "connected"
     },
     {
@@ -15,7 +16,7 @@
       "avatar": "",
       "accessToken": "pre-configured",
       "connectedAt": "2026-05-25T11:34:49Z",
-      "lastPostedAt": "2026-05-25T11:38:28Z",
+      "lastPostedAt": "2026-05-25T11:48:28Z",
       "status": "connected"
     },
     {

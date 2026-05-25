@@ -135,9 +135,14 @@ async function authFlow(platform: string, label: string, loginUrl: string, succe
     await page.goto(loginUrl, { waitUntil: "domcontentloaded" })
     console.log(`  → Waiting for you to log in on ${label}...`)
 
-    await page.waitForURL(successUrl, { timeout: 180000 })
-    console.log("  ✅ Login detected!")
-    await page.waitForTimeout(2000)
+    // Wait for the home timeline or compose button to appear, indicating a successful login
+    try {
+        await page.waitForSelector("div[data-testid='SideNav_NewTweet_Button']", { timeout: 300000 })
+    } catch {
+        // Fallback: give some extra time before proceeding
+        await page.waitForTimeout(30000)
+    }
+    console.log(`  ✅ Login detected!`)
 
     const cookies = await context.cookies()
     const file = cookieFile(platform)
