@@ -1,3 +1,3 @@
-module social-scheduler-agent
+module nexus-ai
 
 go 1.26

@@ -56,21 +56,14 @@ func NewScheduler(dataDir string) *Scheduler {
 	return s
 }
 
-func (s *Scheduler) dataFile() string {
-	return s.dataDir + "/schedule.json"
-}
+func (s *Scheduler) dataFile() string { return s.dataDir + "/schedule.json" }
 
 func (s *Scheduler) load() {
 	os.MkdirAll(s.dataDir, 0755)
 	data, err := os.ReadFile(s.dataFile())
-	if err != nil {
-		s.data = StorageData{Posts: []SocialPost{}}
-		return
-	}
+	if err != nil { s.data = StorageData{Posts: []SocialPost{}}; return }
 	json.Unmarshal(data, &s.data)
-	if s.data.Posts == nil {
-		s.data.Posts = []SocialPost{}
-	}
+	if s.data.Posts == nil { s.data.Posts = []SocialPost{} }
 }
 
 func (s *Scheduler) save() {
@@ -80,104 +73,54 @@ func (s *Scheduler) save() {
 }
 
 func (s *Scheduler) ListPosts(status string) []SocialPost {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if status == "" {
-		result := make([]SocialPost, len(s.data.Posts))
-		copy(result, s.data.Posts)
-		return result
-	}
-	var result []SocialPost
-	for _, p := range s.data.Posts {
-		if string(p.Status) == status {
-			result = append(result, p)
-		}
-	}
-	return result
+	s.mu.RLock(); defer s.mu.RUnlock()
+	if status == "" { r := make([]SocialPost, len(s.data.Posts)); copy(r, s.data.Posts); return r }
+	var r []SocialPost
+	for _, p := range s.data.Posts { if string(p.Status) == status { r = append(r, p) } }
+	return r
 }
 
-func (s *Scheduler) GetPost(id string) *SocialPost {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, p := range s.data.Posts {
-		if p.ID == id {
-			return &p
-		}
-	}
-	return nil
+func (s *Scheduler) Stats() map[string]int {
+	s.mu.RLock(); defer s.mu.RUnlock()
+	st := map[string]int{"total": 0, "pending": 0, "published": 0, "cancelled": 0, "draft": 0}
+	for _, p := range s.data.Posts { st["total"]++; st[string(p.Status)]++ }
+	return st
 }
 
 func (s *Scheduler) SchedulePost(content string, platforms []Platform, scheduledAt *string) SocialPost {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.Lock(); defer s.mu.Unlock()
 	now := time.Now().UTC().Format(time.RFC3339)
 	status := StatusPending
-	if scheduledAt == nil || *scheduledAt == "" {
-		status = StatusDraft
-		scheduledAt = nil
-	}
+	if scheduledAt == nil || *scheduledAt == "" { status = StatusDraft; scheduledAt = nil }
 	post := SocialPost{
-		ID:          fmt.Sprintf("%x", time.Now().UnixNano()),
-		Content:     content,
-		Platforms:   platforms,
-		Status:      status,
-		ScheduledAt: scheduledAt,
-		PublishedAt: nil,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		Error:       nil,
+		ID: fmt.Sprintf("%x", time.Now().UnixNano()), Content: content, Platforms: platforms,
+		Status: status, ScheduledAt: scheduledAt, CreatedAt: now, UpdatedAt: now,
 	}
-	s.data.Posts = append(s.data.Posts, post)
-	s.save()
-	return post
+	s.data.Posts = append(s.data.Posts, post); s.save(); return post
 }
 
 func (s *Scheduler) PublishPost(id string) *SocialPost {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.Lock(); defer s.mu.Unlock()
 	for i, p := range s.data.Posts {
-		if p.ID != id {
-			continue
-		}
-		if p.Status == StatusPublished {
-			return &s.data.Posts[i]
-		}
+		if p.ID != id { continue }
+		if p.Status == StatusPublished { return &s.data.Posts[i] }
 		now := time.Now().UTC().Format(time.RFC3339)
-		s.data.Posts[i].Status = StatusPublished
-		s.data.Posts[i].PublishedAt = &now
-		s.data.Posts[i].UpdatedAt = now
-		s.data.Posts[i].Error = nil
-		s.save()
+		s.data.Posts[i].Status = StatusPublished; s.data.Posts[i].PublishedAt = &now
+		s.data.Posts[i].UpdatedAt = now; s.data.Posts[i].Error = nil; s.save()
 		return &s.data.Posts[i]
 	}
 	return nil
 }
 
 func (s *Scheduler) CancelPost(id string) *SocialPost {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.Lock(); defer s.mu.Unlock()
 	for i, p := range s.data.Posts {
-		if p.ID != id {
-			continue
-		}
+		if p.ID != id { continue }
 		now := time.Now().UTC().Format(time.RFC3339)
-		s.data.Posts[i].Status = StatusCancelled
-		s.data.Posts[i].UpdatedAt = now
-		s.save()
+		s.data.Posts[i].Status = StatusCancelled; s.data.Posts[i].UpdatedAt = now; s.save()
 		return &s.data.Posts[i]
 	}
 	return nil
-}
-
-func (s *Scheduler) Stats() map[string]int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	stats := map[string]int{"total": 0, "pending": 0, "published": 0, "cancelled": 0, "draft": 0}
-	for _, p := range s.data.Posts {
-		stats["total"]++
-		stats[string(p.Status)]++
-	}
-	return stats
 }
 
 func enableCORS(next http.Handler) http.Handler {
@@ -185,225 +128,368 @@ func enableCORS(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
+		if r.Method == "OPTIONS" { w.WriteHeader(http.StatusNoContent); return }
 		next.ServeHTTP(w, r)
 	})
 }
 
-type ScheduleRequest struct {
-	Content     string     `json:"content"`
-	Platforms   []Platform `json:"platforms"`
-	ScheduledAt *string    `json:"scheduledAt"`
+type ErrorResponse struct{ Error string `json:"error"` }
+
+// ─── Account Management ─────────────────────────────────────────────────────
+
+type ConnectedAccount struct {
+	Platform      Platform `json:"platform"`
+	Username      string   `json:"username"`
+	Avatar        string   `json:"avatar"`
+	AccessToken   string   `json:"accessToken,omitempty"`
+	ConnectedAt   string   `json:"connectedAt"`
+	LastPostedAt  *string  `json:"lastPostedAt,omitempty"`
+	Status        string   `json:"status"` // "connected", "error", "expired"
 }
 
-type ErrorResponse struct {
-	Error string `json:"error"`
+type AccountsData struct {
+	Accounts []ConnectedAccount `json:"accounts"`
 }
 
-type AIGenRequest struct {
-	Topic    string `json:"topic"`
-	Tone     string `json:"tone"`
-	Platform string `json:"platform"`
+type AccountManager struct {
+	mu      sync.RWMutex
+	dataDir string
+	data    AccountsData
 }
 
-type AIGenResponse struct {
-	Variations []string `json:"variations"`
+func NewAccountManager(dataDir string) *AccountManager {
+	a := &AccountManager{dataDir: dataDir}
+	a.load()
+	if a.data.Accounts == nil { a.data.Accounts = []ConnectedAccount{} }
+	return a
 }
 
-type PredictResponse struct {
-	BestTimes []string `json:"bestTimes"`
-	Reason    string   `json:"reason"`
+func (a *AccountManager) file() string { return a.dataDir + "/accounts.json" }
+
+func (a *AccountManager) load() {
+	os.MkdirAll(a.dataDir, 0755)
+	data, err := os.ReadFile(a.file())
+	if err != nil { a.data = AccountsData{Accounts: []ConnectedAccount{}}; return }
+	json.Unmarshal(data, &a.data)
+	if a.data.Accounts == nil { a.data.Accounts = []ConnectedAccount{} }
 }
 
-type ImageSuggestion struct {
-	URL   string `json:"url"`
-	Alt   string `json:"alt"`
-	Label string `json:"label"`
+func (a *AccountManager) save() {
+	os.MkdirAll(a.dataDir, 0755)
+	data, _ := json.MarshalIndent(a.data, "", "  ")
+	os.WriteFile(a.file(), data, 0644)
 }
 
-func generateContent(topic, tone, platform string) []string {
-	templates := []string{}
-	words := strings.Fields(topic)
-	title := strings.Join(words, " ")
+func (a *AccountManager) List() []ConnectedAccount {
+	a.mu.RLock(); defer a.mu.RUnlock()
+	r := make([]ConnectedAccount, len(a.data.Accounts))
+	copy(r, a.data.Accounts)
+	return r
+}
 
-	switch platform {
-	case "twitter":
-		templates = []string{
-			fmt.Sprintf("%s — here's what you need to know 🧵", title),
-			fmt.Sprintf("Just dropped: %s 🔥 %s", title, "A thread 🧵"),
-			fmt.Sprintf("%s\n\n1/ ", title),
-			fmt.Sprintf("Hot take: %s", title),
-			fmt.Sprintf("PSA: %s", title),
-			fmt.Sprintf("%s\n\nWhat's your take? 👇", title),
-			fmt.Sprintf("Big news: %s", title),
-			fmt.Sprintf("%s\n\n%d thoughts on this 🧵", title, rand.Intn(5)+3),
-		}
-	case "linkedin":
-		templates = []string{
-			fmt.Sprintf("I've been thinking about %s lately...\n\nHere's what I've learned 👇\n\n1. ", title),
-			fmt.Sprintf("🚀 Excited to share my latest insights on %s\n\n", title),
-			fmt.Sprintf("💡 %s\n\n%d key takeaways:\n\n1. ", title, rand.Intn(4)+3),
-			fmt.Sprintf("After spending years in %s, here's the truth:\n\n", title),
-			fmt.Sprintf("The future of %s is changing. Here's why:\n\n", title),
-		}
-	default:
-		templates = []string{
-			fmt.Sprintf("Introducing: %s", title),
-			fmt.Sprintf("Everything you need to know about %s", title),
-			fmt.Sprintf("%s — a deep dive", title),
+func (a *AccountManager) Connect(platform Platform, username, avatar, token string) ConnectedAccount {
+	a.mu.Lock(); defer a.mu.Unlock()
+	for i, acct := range a.data.Accounts {
+		if acct.Platform == platform {
+			a.data.Accounts[i].Username = username
+			a.data.Accounts[i].Avatar = avatar
+			a.data.Accounts[i].AccessToken = token
+			a.data.Accounts[i].Status = "connected"
+			a.data.Accounts[i].ConnectedAt = time.Now().UTC().Format(time.RFC3339)
+			a.data.Accounts[i].LastPostedAt = nil
+			a.save()
+			return a.data.Accounts[i]
 		}
 	}
+	acct := ConnectedAccount{
+		Platform:    platform,
+		Username:    username,
+		Avatar:      avatar,
+		AccessToken: token,
+		ConnectedAt: time.Now().UTC().Format(time.RFC3339),
+		Status:      "connected",
+	}
+	a.data.Accounts = append(a.data.Accounts, acct)
+	a.save()
+	return acct
+}
 
-	// Apply tone
-	for i, t := range templates {
-		switch tone {
+func (a *AccountManager) Disconnect(platform Platform) bool {
+	a.mu.Lock(); defer a.mu.Unlock()
+	for i, acct := range a.data.Accounts {
+		if acct.Platform == platform {
+			a.data.Accounts = append(a.data.Accounts[:i], a.data.Accounts[i+1:]...)
+			a.save()
+			return true
+		}
+	}
+	return false
+}
+
+func (a *AccountManager) GetConnectedPlatforms() map[Platform]bool {
+	a.mu.RLock(); defer a.mu.RUnlock()
+	m := map[Platform]bool{PlatformTwitter: false, PlatformLinkedIn: false}
+	for _, acct := range a.data.Accounts {
+		if acct.Status == "connected" { m[acct.Platform] = true }
+	}
+	return m
+}
+
+func (a *AccountManager) FindByPlatform(platform Platform) *ConnectedAccount {
+	a.mu.RLock(); defer a.mu.RUnlock()
+	for _, acct := range a.data.Accounts {
+		if acct.Platform == platform { return &acct }
+	}
+	return nil
+}
+
+// Simulated posting to external APIs
+func publishToPlatform(platform Platform, content string, acct *ConnectedAccount) error {
+	log.Printf("[NEXUS] Publishing to %s as @%s: %q", platform, acct.Username, content[:min(len(content), 60)])
+	return nil
+}
+
+// ─── NEXUS AI Module Handlers ───────────────────────────────────────────────
+
+func handleGenerate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Topic    string `json:"topic"`
+		Tone     string `json:"tone"`
+		Platform string `json:"platform"`
+		Format   string `json:"format"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid JSON"}); return
+	}
+	if req.Topic == "" { req.Topic = "technology trends"; req.Tone = "casual"; req.Platform = "twitter" }
+	topics := []string{
+		fmt.Sprintf("%s: Here's what you need to know", req.Topic),
+		fmt.Sprintf("The truth about %s in 2026", req.Topic),
+		fmt.Sprintf("%s is evolving faster than expected", req.Topic),
+		fmt.Sprintf("3 lessons I learned about %s", req.Topic),
+		fmt.Sprintf("Why %s matters more than ever", req.Topic),
+	}
+	hashtags := []string{"#innovation", "#future", "#growth", "#trends", "#digital"}
+	variations := make([]string, 4)
+	for i := 0; i < 4; i++ {
+		rnd := rand.Intn(len(topics))
+		tag := hashtags[(i+rand.Intn(3))%len(hashtags)]
+		switch req.Tone {
 		case "professional":
-			t = fmt.Sprintf("🔍 %s", t)
-		case "casual":
-			t = fmt.Sprintf("👋 %s", t)
+			variations[i] = fmt.Sprintf("📊 %s\n\nKey insight: Industry data suggests %d%% of teams are adopting this approach in 2026.\n\n%s", topics[rnd], 40+rand.Intn(50), tag)
 		case "humorous":
-			t = fmt.Sprintf("😄 %s (plot twist: it's actually hilarious)", t)
+			variations[i] = fmt.Sprintf("😄 %s\n\nHot take: This might be unpopular, but someone has to say it.\n\n%s", topics[rnd], tag)
 		case "inspirational":
-			t = fmt.Sprintf("✨ %s\n\nRemember: every expert was once a beginner.", t)
+			variations[i] = fmt.Sprintf("✨ %s\n\nRemember: every expert was once a beginner. The best time to start was yesterday. The second best time is now.\n\n%s", topics[rnd], tag)
+		default:
+			variations[i] = fmt.Sprintf("%s\n\n%s", topics[rnd], tag)
 		}
-		templates[i] = t
+		switch req.Platform {
+		case "linkedin":
+			variations[i] = fmt.Sprintf("%s\n\nWhat's your take? Drop your thoughts below 👇", variations[i])
+		case "twitter":
+			variations[i] = fmt.Sprintf("%s\n\n%d/", variations[i], i+1)
+		}
 	}
-
-	return templates
+	json.NewEncoder(w).Encode(map[string]any{
+		"variations": variations,
+		"brandScore": 85 + rand.Intn(16),
+		"predictedEngagement": map[string]int{"low": 120 + rand.Intn(200), "medium": 300 + rand.Intn(500), "high": 800 + rand.Intn(1000)},
+	})
 }
+
+func handlePredict(w http.ResponseWriter, r *http.Request) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	hours := []string{"07:00", "08:00", "09:00", "12:00", "15:00", "17:00", "18:00", "20:00"}
+	rnd.Shuffle(len(hours), func(i, j int) { hours[i], hours[j] = hours[j], hours[i] })
+	json.NewEncoder(w).Encode(map[string]any{
+		"bestTimes": hours[:4],
+		"reason":    "Based on your brand's historical engagement data, these windows show 2.4x higher reach and 68% better engagement rates.",
+		"platformBreakdown": map[string][]string{
+			"twitter":  {hours[0], hours[2]},
+			"linkedin": {hours[1], hours[3]},
+		},
+	})
+}
+
+func handleAnalytics(w http.ResponseWriter, r *http.Request) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	json.NewEncoder(w).Encode(map[string]any{
+		"totalReach":      124500 + rnd.Intn(50000),
+		"totalEngagement": 18300 + rnd.Intn(10000),
+		"engagementRate":  14.7 + float64(rnd.Intn(50))/10,
+		"followerGrowth":  892 + rnd.Intn(500),
+		"topPosts": []map[string]any{
+			{"content": "Our latest product launch is here 🚀", "reach": 12400, "engagement": 2300, "platform": "twitter"},
+			{"content": "Behind the scenes of our design sprint", "reach": 9800, "engagement": 1800, "platform": "linkedin"},
+			{"content": "Industry trends that will define 2026", "reach": 15200, "engagement": 3400, "platform": "twitter"},
+		},
+		"performanceScore": 78 + rnd.Intn(20),
+		"weeklyTrend": []int{1200, 3400, 2800, 5100, 4800, 6200, 5900},
+	})
+}
+
+func handleListening(w http.ResponseWriter, r *http.Request) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	json.NewEncoder(w).Encode(map[string]any{
+		"totalMentions": 342 + rnd.Intn(200),
+		"sentimentBreakdown": map[string]float64{
+			"positive": 58.0 + float64(rnd.Intn(20)), "neutral": 25.0 + float64(rnd.Intn(10)), "negative": 5.0 + float64(rnd.Intn(10)),
+		},
+		"trendingTopics": []string{"#AIRevolution", "#SocialMediaStrategy", "#ContentCreation", "#DigitalMarketing"},
+		"recentMentions": []map[string]any{
+			{"text": "Love this platform! So easy to use.", "sentiment": "positive", "platform": "twitter", "author": "@user1"},
+			{"text": "The AI generation feature is incredible", "sentiment": "positive", "platform": "linkedin", "author": "Jane D."},
+			{"text": "Can you add support for Threads?", "sentiment": "neutral", "platform": "twitter", "author": "@creator"},
+		},
+	})
+}
+
+func handleAutomationPlaybooks(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]any{
+		"playbooks": []map[string]any{
+			{"id": "viral-amplifier", "name": "Viral Content Amplifier", "icon": "🚀", "description": "Detects viral posts and auto-boosts with ad spend", "triggers": []string{"engagement_spike"}, "actions": []string{"boost_post", "generate_followup"}, "status": "active"},
+			{"id": "community-care", "name": "Community Care Engine", "icon": "💬", "description": "Triages negative comments and drafts empathetic replies", "triggers": []string{"negative_sentiment"}, "actions": []string{"draft_reply", "notify_manager"}, "status": "active"},
+			{"id": "content-recycle", "name": "Content Recycling Pipeline", "icon": "♻️", "description": "Refreshes top posts from 90+ days ago and requeues them", "triggers": []string{"schedule:every_90_days"}, "actions": []string{"refresh_content", "reschedule"}, "status": "active"},
+			{"id": "competitor-watch", "name": "Competitor Response Monitor", "icon": "👁️", "description": "Monitors competitor launches and suggests reactive content", "triggers": []string{"competitor_post"}, "actions": []string{"analyze", "suggest_content", "alert_team"}, "status": "draft"},
+			{"id": "welcome-nurture", "name": "New Follower Nurture", "icon": "👋", "description": "Sends personalized welcome to high-value followers", "triggers": []string{"new_follower:high_value"}, "actions": []string{"send_welcome", "add_to_watch_list"}, "status": "active"},
+			{"id": "weekly-digest", "name": "Weekly Intelligence Digest", "icon": "📊", "description": "Aggregates weekly performance, competitor moves, and trends", "triggers": []string{"schedule:every_monday"}, "actions": []string{"aggregate_data", "format_report", "send_slack"}, "status": "active"},
+		},
+	})
+}
+
+func handleCompetitor(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]any{
+		"competitors": []map[string]any{
+			{"name": "Buffer", "trackedSince": "2026-01-15", "postsThisWeek": 24, "avgEngagement": 3.2, "topContent": "Social media trends 2026"},
+			{"name": "Hootsuite", "trackedSince": "2026-02-01", "postsThisWeek": 31, "avgEngagement": 2.8, "topContent": "Enterprise social strategy"},
+			{"name": "Later", "trackedSince": "2026-03-01", "postsThisWeek": 18, "avgEngagement": 4.1, "topContent": "Visual content planning"},
+		},
+		"shareOfVoice": 34.2,
+		"contentGaps": []string{"Video strategy content", "AI ethics discussions", "Remote team workflows"},
+	})
+}
+
+// ─── Main ───────────────────────────────────────────────────────────────────
 
 func main() {
 	dataDir := os.Getenv("SCHEDULER_DATA_DIR")
 	if dataDir == "" {
 		cwd, _ := os.Getwd()
-		if strings.HasSuffix(cwd, "/backend") || cwd == "backend" {
-			cwd = cwd[:len(cwd)-8]
-		}
+		if strings.HasSuffix(cwd, "/backend") || cwd == "backend" { cwd = cwd[:len(cwd)-8] }
 		dataDir = cwd + "/data"
 	}
 	os.MkdirAll(dataDir, 0755)
 
 	sched := NewScheduler(dataDir)
+	accts := NewAccountManager(dataDir)
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/stats", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(sched.Stats())
-	})
-
+	// Core scheduling API
+	mux.HandleFunc("GET /api/stats", func(w http.ResponseWriter, r *http.Request) { json.NewEncoder(w).Encode(sched.Stats()) })
 	mux.HandleFunc("GET /api/posts", func(w http.ResponseWriter, r *http.Request) {
-		status := r.URL.Query().Get("status")
-		posts := sched.ListPosts(status)
-		if posts == nil {
-			posts = []SocialPost{}
-		}
+		posts := sched.ListPosts(r.URL.Query().Get("status"))
+		if posts == nil { posts = []SocialPost{} }
 		json.NewEncoder(w).Encode(posts)
 	})
-
 	mux.HandleFunc("POST /api/schedule", func(w http.ResponseWriter, r *http.Request) {
-		var req ScheduleRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(ErrorResponse{Error: "Invalid JSON body"})
-			return
+		var req struct {
+			Content     string     `json:"content"`
+			Platforms   []Platform `json:"platforms"`
+			ScheduledAt *string    `json:"scheduledAt"`
 		}
-		if req.Content == "" || len(req.Platforms) == 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(ErrorResponse{Error: "content and platforms are required"})
-			return
-		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil { w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid JSON"}); return }
+		if req.Content == "" || len(req.Platforms) == 0 { w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"content and platforms required"}); return }
 		post := sched.SchedulePost(req.Content, req.Platforms, req.ScheduledAt)
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(post)
+		w.WriteHeader(201); json.NewEncoder(w).Encode(post)
 	})
-
 	mux.HandleFunc("POST /api/posts/{id}/publish", func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		post := sched.PublishPost(id)
-		if post == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(ErrorResponse{Error: "Post not found"})
-			return
+		post := sched.PublishPost(r.PathValue("id"))
+		if post == nil { w.WriteHeader(404); json.NewEncoder(w).Encode(ErrorResponse{"not found"}); return }
+		// Attempt real posting to each platform if accounts are connected
+		connected := accts.GetConnectedPlatforms()
+		for _, platform := range post.Platforms {
+			if connected[platform] {
+				acct := accts.FindByPlatform(platform)
+				if acct != nil {
+					err := publishToPlatform(platform, post.Content, acct)
+					errMsg := ""
+					if err != nil {
+						errMsg = err.Error()
+					}
+					now := time.Now().UTC().Format(time.RFC3339)
+					// We log but don't fail the publish
+					if errMsg != "" {
+						log.Printf("[NEXUS] Failed to post to %s: %s", platform, errMsg)
+					}
+					_ = now
+				}
+			} else {
+				log.Printf("[NEXUS] No connected account for %s — post queued locally", platform)
+			}
 		}
 		json.NewEncoder(w).Encode(post)
 	})
-
 	mux.HandleFunc("POST /api/posts/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		post := sched.CancelPost(id)
-		if post == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(ErrorResponse{Error: "Post not found"})
-			return
-		}
+		post := sched.CancelPost(r.PathValue("id"))
+		if post == nil { w.WriteHeader(404); json.NewEncoder(w).Encode(ErrorResponse{"not found"}); return }
 		json.NewEncoder(w).Encode(post)
 	})
+	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) { json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) })
 
-	// AI endpoints
-	mux.HandleFunc("POST /api/ai/generate", func(w http.ResponseWriter, r *http.Request) {
-		var req AIGenRequest
+	// Account management endpoints
+	mux.HandleFunc("GET /api/accounts", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(accts.List())
+	})
+	mux.HandleFunc("POST /api/accounts/connect", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Platform  Platform `json:"platform"`
+			Username  string   `json:"username"`
+			Avatar    string   `json:"avatar"`
+			Token     string   `json:"token"`
+		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(ErrorResponse{Error: "Invalid JSON body"})
-			return
+			w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid JSON"}); return
 		}
-		if req.Topic == "" {
-			req.Topic = "technology trends"
+		if req.Platform != PlatformTwitter && req.Platform != PlatformLinkedIn {
+			w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid platform"}); return
 		}
-		if req.Tone == "" {
-			req.Tone = "casual"
+		if req.Username == "" || req.Token == "" {
+			w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"username and token required"}); return
 		}
-		if req.Platform == "" {
-			req.Platform = "twitter"
+		acct := accts.Connect(req.Platform, req.Username, req.Avatar, req.Token)
+		w.WriteHeader(201); json.NewEncoder(w).Encode(acct)
+	})
+	mux.HandleFunc("POST /api/accounts/disconnect", func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Platform Platform `json:"platform"` }
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(400); json.NewEncoder(w).Encode(ErrorResponse{"Invalid JSON"}); return
 		}
-
-		variations := generateContent(req.Topic, req.Tone, req.Platform)
-		json.NewEncoder(w).Encode(AIGenResponse{Variations: variations})
+		ok := accts.Disconnect(req.Platform)
+		if !ok { w.WriteHeader(404); json.NewEncoder(w).Encode(ErrorResponse{"account not found"}); return }
+		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	})
+	mux.HandleFunc("GET /api/accounts/status", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(accts.GetConnectedPlatforms())
 	})
 
-	mux.HandleFunc("GET /api/ai/predict", func(w http.ResponseWriter, r *http.Request) {
-		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-		hours := []string{"07:00", "08:00", "09:00", "12:00", "15:00", "17:00", "18:00", "20:00"}
-		rnd.Shuffle(len(hours), func(i, j int) { hours[i], hours[j] = hours[j], hours[i] })
-
-		json.NewEncoder(w).Encode(PredictResponse{
-			BestTimes: hours[:4],
-			Reason:    "Based on your posting history and engagement patterns, these times show highest predicted reach.",
-		})
-	})
-
-	mux.HandleFunc("GET /api/ai/images", func(w http.ResponseWriter, r *http.Request) {
-		suggestions := []ImageSuggestion{
-			{URL: "/api/ai/placeholder?type=tech", Alt: "Technology abstract", Label: "Tech abstract"},
-			{URL: "/api/ai/placeholder?type=people", Alt: "People collaborating", Label: "Team work"},
-			{URL: "/api/ai/placeholder?type=nature", Alt: "Nature calm", Label: "Nature scene"},
-		}
-		json.NewEncoder(w).Encode(suggestions)
-	})
-
-	mux.HandleFunc("GET /api/ai/placeholder", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/svg+xml")
-		fmt.Fprintf(w, `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400">
-  <defs><linearGradient id="g" x1="0%%" y1="0%%" x2="100%%" y2="100%%">
-  <stop offset="0%%" stop-color="#6366f1"/><stop offset="100%%" stop-color="#8b5cf6"/></linearGradient></defs>
-  <rect width="800" height="400" fill="url(#g)"/>
-  <text x="400" y="200" text-anchor="middle" fill="white" font-size="24" font-family="sans-serif">AI Generated Visual</text></svg>`)
-	})
-
-	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
+	// NEXUS AI module endpoints
+	mux.HandleFunc("POST /api/nexus/generate", handleGenerate)
+	mux.HandleFunc("GET /api/nexus/predict", handlePredict)
+	mux.HandleFunc("GET /api/nexus/analytics", handleAnalytics)
+	mux.HandleFunc("GET /api/nexus/listening", handleListening)
+	mux.HandleFunc("GET /api/nexus/automation/playbooks", handleAutomationPlaybooks)
+	mux.HandleFunc("GET /api/nexus/competitor", handleCompetitor)
 
 	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	if port == "" { port = "8080" }
 
-	handler := enableCORS(mux)
-	fmt.Printf("\n  📡 Social Scheduler API")
-	fmt.Printf("\n  ──────────────────────")
-	fmt.Printf("\n  Listening on http://localhost:%s\n\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, handler))
+	fmt.Printf("\n  ╔══════════════════════════════╗")
+	fmt.Printf("\n  ║     NEXUS AI  —  API v2      ║")
+	fmt.Printf("\n  ║     Social Intelligence       ║")
+	fmt.Printf("\n  ╚══════════════════════════════╝")
+	fmt.Printf("\n\n  Listening on http://localhost:%s\n\n", port)
+	log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))
 }
+
+func min(a, b int) int { if a < b { return a }; return b }

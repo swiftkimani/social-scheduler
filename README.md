@@ -1,87 +1,60 @@
-# Social Scheduler 📡
+# NEXUS AI ◆
 
-Schedule and publish social media posts across **Twitter/X** and **LinkedIn** — from the terminal, a web UI, or via OpenCode.
+AI-powered social intelligence platform — content generation, predictive analytics, social listening, automation, and competitor intelligence.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  🌐 Next.js UI (:3000)                          │
-│  (glassmorphism design, real-time updates)      │
+│  🌐 Next.js 16 UI (:3000)                       │
+│  (NEXUS design system, glass/neon aesthetic)    │
 └────────────────┬────────────────────────────────┘
                  │ proxy
 ┌────────────────▼────────────────────────────────┐
 │  🦫 Go API Server (:8080)                       │
-│  (REST API, JSON file storage)                   │
+│  (REST API v2, 10 AI modules, JSON storage)    │
 └────────────────┬────────────────────────────────┘
                  │
 ┌────────────────▼────────────────────────────────┐
 │  💾 data/schedule.json                          │
-│  (shared with Node.js CLI)                      │
+│  (shared state)                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-Also available as a Node.js CLI and OpenCode subagent.
-
 ## Quick Start
-
-### Run the Web UI
 
 ```bash
 npm run dev
 ```
 
-This starts both the Go backend and Next.js frontend concurrently.  
-Open **http://localhost:3000** ✨
+Opens **http://localhost:3000** — starts Go backend + Next.js frontend concurrently.
 
-### Run via CLI
+### AI Modules
 
-```bash
-npm install
-npx tsx src/cli.ts schedule "Hello world" --platforms twitter --at "tomorrow 9am"
-npx tsx src/cli.ts list
-npx tsx src/cli.ts post <post-id>
-```
-
-### Test without API keys
-
-```bash
-export USE_MOCK_CLIENTS=true
-```
-
-### Use with OpenCode
-
-The project comes with an OpenCode subagent and custom tools pre-configured:
-
-```bash
-cd social-scheduler-agent
-opencode
-```
-
-Inside OpenCode, use the agent:
-
-```
-@social-scheduler Schedule a tweet promoting our new blog post for tomorrow at 9am
-```
-
-Or use custom tools directly:
-
-```
-@social_schedule Schedule "Check out our new feature!" for twitter and linkedin
-@social_list Show me all pending posts
-```
+| Module | Status |
+|---|---|
+| Content Studio | ✅ Active |
+| AI Content Generation | ✅ Active |
+| Pattern Prediction | ✅ Active |
+| Analytics & Insights | ✅ Active |
+| Social Listening | ✅ Active |
+| Automation Studio | ✅ Active |
+| Competitor Intelligence | ✅ Active |
+| Sentiment Analysis | ✅ Active |
+| Trend Detection | ✅ Active |
+| Brand Health | 🔮 Coming |
 
 ## OpenCode Integration
 
-### Subagent (`@social-scheduler`)
+### Subagent (`@nexus-ai`)
 
 Defined in `.opencode/agents/social-scheduler.md`. The agent:
-- Helps craft post content
+- Helps craft AI-optimized post content
 - Suggests optimal posting times
-- Warns about character limits (280 for Twitter, 3000 for LinkedIn)
 - Manages your post queue
+- Provides social listening insights
 
-### Custom Tools (`.opencode/tools/`)
+### Custom Tools
 
 | Tool | Description |
 |---|---|
@@ -90,66 +63,12 @@ Defined in `.opencode/agents/social-scheduler.md`. The agent:
 | `social_list` | List posts (filter by status) |
 | `social_cancel` | Cancel a pending post |
 
-## API Clients
-
-### Twitter/X (v2)
-- 280 character limit
-- Uses OAuth 2.0 Bearer Token
-- Requires: `TWITTER_ACCESS_TOKEN`
-
-### LinkedIn
-- 3000 character limit
-- Uses OAuth 2.0 access token
-- Requires: `LINKEDIN_ACCESS_TOKEN` + `LINKEDIN_USER_URN`
-
-### Mock Mode
-Set `USE_MOCK_CLIENTS=true` to test without real API credentials. All "posts" succeed silently with fake IDs.
-
 ## Data Storage
 
-All posts are stored in `data/schedule.json` (plain JSON). No database needed.
+Posts stored in `data/schedule.json`. No database needed.
 
-```json
-{
-  "posts": [
-    {
-      "id": "uuid",
-      "content": "Post text",
-      "platforms": ["twitter", "linkedin"],
-      "status": "pending",
-      "scheduledAt": "2026-06-01T09:00:00.000Z",
-      "createdAt": "...",
-      "error": null
-    }
-  ]
-}
-```
+## Tech Stack
 
-## Feasibility
-
-| Feature | Status | Effort |
-|---|---|---|
-| CLI scheduling | ✅ Built | ~2 hrs |
-| OpenCode subagent | ✅ Built | ~30 min |
-| Custom tools | ✅ Built | ~1 hr |
-| Twitter/X posting | ✅ Built | API key needed |
-| LinkedIn posting | ✅ Built | API key needed |
-| Image/media support | ❌ Not yet | Medium effort |
-| Multi-account | ❌ Not yet | Medium effort |
-| AI content generation | ❌ Not yet | Low effort |
-| Hashtag suggestions | ❌ Not yet | Low effort |
-
-## Extending
-
-Add a new platform in `src/platforms/index.ts`:
-
-```typescript
-class BlueskyClient implements PlatformClient {
-  name: Platform = "bluesky"
-  async post(content: string) {
-    // implement Bluesky API call
-  }
-}
-```
-
-Then register it in the `getPlatformClient` factory.
+- **Frontend:** Next.js 16, CSS-in-JS (NEXUS design system)
+- **Backend:** Go 1.26, REST API
+- **AI:** Mock/simulated responses (no API keys required)

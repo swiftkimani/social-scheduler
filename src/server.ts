@@ -97,7 +97,7 @@ const server = http.createServer(handleRequest)
 
 server.listen(PORT, () => {
   const addr = `http://localhost:${PORT}`
-  console.log(`\n  🌐 Social Scheduler UI`)
+  console.log(`\n  ◆ NEXUS AI`)
   console.log(`  ─────────────────────`)
   console.log(`  Open: ${addr}`)
   console.log()
@@ -108,7 +108,7 @@ const UI_HTML = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Social Scheduler</title>
+<title>NEXUS AI</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -201,7 +201,7 @@ const UI_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <div class="container">
-  <h1>📅 Social Scheduler</h1>
+  <h1>◆ NEXUS AI</h1>
   <p class="subtitle">Schedule and manage social media posts</p>
 
   <div class="card" id="schedule-card">
