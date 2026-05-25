@@ -1,82 +1,58 @@
-# Social Scheduler Agent
+# Social Scheduler 📡
 
-An AI-powered social media scheduling agent that works as an **OpenCode subagent** and a **standalone CLI tool**. Schedule posts for Twitter/X and LinkedIn.
+Schedule and publish social media posts across **Twitter/X** and **LinkedIn** — from the terminal, a web UI, or via OpenCode.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  You (in OpenCode)                              │
-│    @social-scheduler "Schedule a post..."       │
-└──────────────┬──────────────────────────────────┘
-               │
-┌──────────────▼──────────────────────────────────┐
-│  .opencode/agents/social-scheduler.md           │
-│  (subagent definition — prompt + permissions)   │
-└──────────────┬──────────────────────────────────┘
-               │ calls
-┌──────────────▼──────────────────────────────────┐
-│  .opencode/tools/social_*.ts                    │
-│  (custom tools — schedule, post, list, cancel)  │
-└──────────────┬──────────────────────────────────┘
-               │ runs
-┌──────────────▼──────────────────────────────────┐
-│  src/cli.ts                                     │
-│  (commander-based CLI)                          │
-└──────────────┬──────────────────────────────────┘
-               │
-┌──────────────▼──────────────────────────────────┐
-│  src/scheduler.ts  ◄── src/storage.ts           │
-│  (engine)               (JSON file store)       │
-│  src/platforms/index.ts                         │
-│  (Twitter/X API + LinkedIn API clients)         │
+│  🌐 Next.js UI (:3000)                          │
+│  (glassmorphism design, real-time updates)      │
+└────────────────┬────────────────────────────────┘
+                 │ proxy
+┌────────────────▼────────────────────────────────┐
+│  🦫 Go API Server (:8080)                       │
+│  (REST API, JSON file storage)                   │
+└────────────────┬────────────────────────────────┘
+                 │
+┌────────────────▼────────────────────────────────┐
+│  💾 data/schedule.json                          │
+│  (shared with Node.js CLI)                      │
 └─────────────────────────────────────────────────┘
 ```
 
+Also available as a Node.js CLI and OpenCode subagent.
+
 ## Quick Start
 
-### 1. Install dependencies
+### Run the Web UI
 
 ```bash
-cd social-scheduler-agent
+# Terminal 1 — Go backend
+cd backend && go run .
+
+# Terminal 2 — Next.js frontend
+cd frontend && npm run dev
+```
+
+Open **http://localhost:3000** ✨
+
+### Run via CLI
+
+```bash
 npm install
+npx tsx src/cli.ts schedule "Hello world" --platforms twitter --at "tomorrow 9am"
+npx tsx src/cli.ts list
+npx tsx src/cli.ts post <post-id>
 ```
 
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-Fill in at least one platform's credentials. **To test without real APIs:**
+### Test without API keys
 
 ```bash
 export USE_MOCK_CLIENTS=true
 ```
 
-### 3. Try the CLI
-
-```bash
-# Schedule a post
-npx tsx src/cli.ts schedule "Hello world from my scheduler!" --platforms twitter --at "tomorrow 9am"
-
-# List all posts
-npx tsx src/cli.ts list
-
-# List pending posts only
-npx tsx src/cli.ts list --status pending
-
-# Publish immediately
-npx tsx src/cli.ts post <post-id>
-
-# Cancel a scheduled post
-npx tsx src/cli.ts cancel <post-id>
-
-# Publish all due posts
-npx tsx src/cli.ts publish-all
-```
-
-### 4. Use with OpenCode
+### Use with OpenCode
 
 The project comes with an OpenCode subagent and custom tools pre-configured:
 
