@@ -99,7 +99,9 @@ function AccountCard({ platform, account, onConnect, onDisconnect }) {
                   boxShadow: "0 0 8px rgba(16,185,129,0.5)",
                 }} />
                 <span style={{fontSize:"0.8rem",color:"#6ee7b7",fontWeight:600}}>Connected</span>
-                <span style={{fontSize:"0.75rem",color:"var(--text-muted)"}}>@{account.username}</span>
+                <a href={`https://${platform.id === "twitter" ? "x.com" : "linkedin.com/in"}/${account.username}`} target="_blank" rel="noopener noreferrer" style={{
+                  fontSize:"0.75rem",color:"#a5b4fc",textDecoration:"none",borderBottom:"1px dotted rgba(165,180,252,0.3)",
+                }}>@{account.username}</a>
               </div>
             ) : (
               <p style={{fontSize:"0.8rem",color:"var(--text-muted)",marginTop:"0.125rem"}}>{platform.description}</p>

@@ -3,6 +3,8 @@
 import "../globals.css"
 import AppSidebar from "../components/AppSidebar"
 import { usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
+import Link from "next/link"
 
 const pageTitles = {
   "/app": { label: "Dashboard", icon: "◉" },
@@ -18,6 +20,21 @@ const pageTitles = {
 export default function AppLayout({ children }) {
   const pathname = usePathname()
   const page = pageTitles[pathname] || { label: "Dashboard", icon: "◉" }
+  const [avatar, setAvatar] = useState("N")
+  const [connected, setConnected] = useState(0)
+
+  useEffect(() => {
+    fetch("http://localhost:8080/api/accounts")
+      .then(r => r.json())
+      .then(accts => {
+        if (accts.length > 0) {
+          const initials = accts.map(a => a.username[0].toUpperCase()).filter(Boolean).join("")
+          setAvatar(initials || "N")
+          setConnected(accts.filter(a => a.status === "connected").length)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="app-layout">
@@ -33,13 +50,12 @@ export default function AppLayout({ children }) {
             <div className="search-trigger">
               <span>🔍</span> Quick search... <kbd>⌘K</kbd>
             </div>
-            <div className="notif-dot">
+            <Link href="/app/settings" className="notif-dot" style={{textDecoration:"none"}}>
               <span>🔔</span>
-              <span className="badge">3</span>
-            </div>
-            <div className="app-topbar-avatar">
-              <span>N</span>
-            </div>
+            </Link>
+            <Link href="/app/settings" className="app-topbar-avatar" style={{textDecoration:"none"}} title={connected > 0 ? `${connected} account(s) connected` : "Connect accounts"}>
+              <span>{avatar}</span>
+            </Link>
           </div>
         </div>
         <div className="app-main-inner">{children}</div>

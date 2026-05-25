@@ -621,6 +621,12 @@ func main() {
 	sched := NewScheduler(dataDir)
 	accts := NewAccountManager(dataDir)
 
+	if len(accts.List()) == 0 {
+		accts.Connect(PlatformTwitter, "swiftkimani", "", "pre-configured")
+		accts.Connect(PlatformLinkedIn, "benard-kimani", "", "pre-configured")
+		log.Println("[ACCOUNTS] Auto-provisioned: @swiftkimani (X), @benard-kimani (LinkedIn)")
+	}
+
 	ctx := contextWithScheduler(sched)
 
 	startAutoPublisher(sched, accts)
