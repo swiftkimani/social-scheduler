@@ -28,13 +28,10 @@ Also available as a Node.js CLI and OpenCode subagent.
 ### Run the Web UI
 
 ```bash
-# Terminal 1 — Go backend
-cd backend && go run .
-
-# Terminal 2 — Next.js frontend
-cd frontend && npm run dev
+npm run dev
 ```
 
+This starts both the Go backend and Next.js frontend concurrently.  
 Open **http://localhost:3000** ✨
 
 ### Run via CLI
